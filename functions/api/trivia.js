@@ -1,10 +1,11 @@
-import STATIC_PREBUILT from './fallbackQuestions.json';
-
 // trivia.js — Fast, hybrid + cached Trivia API for Cloudflare Pages Functions / Workers
 // - Time-boxed LLM calls with instant fallback
 // - Edge cache by (category,difficulty)
 // - In-memory “hybrid” pool per category for instant first-byte
 // - Simpler validation + fewer retries
+
+// Use the external fallback bank (JSON module)
+import STATIC_PREBUILT from './fallbackQuestions.json' assert { type: 'json' };
 
 // ===== In-memory HYBRID POOLS (per isolate) =====
 // NOTE: These reset when the isolate is recycled. For persistence across POPs, bind KV/R2 and replace this with real storage.
@@ -60,11 +61,17 @@ function raceWithTimeout(promise, ms = GEN_TIMEOUT_MS) {
   ]);
 }
 
+// Rotate through static fallbacks for variety if AI is unavailable
+let STATIC_INDEX = 0;
 function pickStatic(category, difficulty) {
-  const arr = STATIC_PREBUILT[`${category}:${difficulty}`] || STATIC_PREBUILT["general:easy"] || [];
+  const arr =
+    STATIC_PREBUILT[`${category}:${difficulty}`] ||
+    STATIC_PREBUILT["general:easy"] ||
+    [];
   if (!arr.length) return null;
-  // return random
-  return arr[Math.floor(Math.random() * arr.length)];
+  const q = arr[STATIC_INDEX % arr.length];
+  STATIC_INDEX++;
+  return structuredClone(q);
 }
 
 // Fisher–Yates shuffle (to randomize answer positions reliably)
@@ -172,7 +179,7 @@ export const onRequestPost = async (context) => {
   // ---------- Hybrid Pool: instant serve if available ----------
   let pooled = poolPop(category, difficulty);
   if (!pooled) {
-    // seed from tiny static set if pool empty
+    // seed from static set if pool empty
     const staticQ = pickStatic(category, difficulty);
     if (staticQ) pooled = structuredClone(staticQ);
   }
@@ -227,12 +234,12 @@ async function generateAndMaybeCache({ category, difficulty, recent, seed }, env
   "topic_key": "dot.key",
   "subject_matter": "domain"
 }
-Keep language concise. Avoid repeating the same topic as user 'recent'.`;
+Return ONLY JSON (no markdown, no commentary). Keep language concise. Avoid repeating topics listed in 'recent'.`;
 
   const user = JSON.stringify({
     category, difficulty,
     constraint: "return ONLY json, no markdown",
-    recent: recent.slice(0, 20) // just a taste to avoid heavy payloads
+    recent: recent.slice(0, 20) // small slice to keep payload light
   });
 
   // up to MAX_TRIES time-boxed attempts
@@ -281,7 +288,9 @@ Keep language concise. Avoid repeating the same topic as user 'recent'.`;
 
       return q;
     } catch (err) {
-      // if timeout, try again w/ new seed (fast backoff)
+      // Log why generation failed; helps diagnose env/model/format issues
+      console.error("[gen fail]", { attempt: i + 1, category, difficulty, error: String(err) });
+      // if timeout or other failure, try again w/ new seed (fast backoff)
       seed = (seed + 13331) >>> 0;
       // On final iteration, break
       if (i === MAX_TRIES - 1) break;
