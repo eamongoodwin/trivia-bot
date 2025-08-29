@@ -63,10 +63,10 @@ export const onRequestPost = async (context) => {
 
   // ---------- Model & sampling tuned for accuracy ----------
   const MODEL_MAP = {
-    easy:   "@cf/meta/llama-3.2-3b-instruct",
-    medium: "@cf/mistral/mistral-small-3.1-24b-instruct",
+    easy:   "@cf/deepseek-ai/deepseek-math-7b-instruct",
+    medium: "@cf/openai/gpt-oss-20b",
     // medium: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-    hard:   "@cf/meta/llama-3.1-70b-instruct-fp8-fast"
+    hard:   "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
   };
   const MODEL = MODEL_MAP[difficulty] || MODEL_MAP.medium;
 
