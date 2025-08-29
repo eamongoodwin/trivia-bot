@@ -6,14 +6,25 @@
   <title>Trivia Bot</title>
   <meta name="description" content="A sleek, adaptive AI trivia game" />
   <meta name="color-scheme" content="light dark" />
+
+  <!-- Favicons (from snippet 1) -->
+  <link rel="icon" type="image/webp" href="favicon_triviabot.webp" sizes="16x16">
+  <link rel="icon" type="image/webp" href="favicon_triviabot.webp" sizes="32x32">
+  <link rel="icon" type="image/webp" href="favicon_triviabot.webp" sizes="48x48">
+  <link rel="apple-touch-icon" href="favicon_triviabot.webp">
+
+  <!-- Optional fallback .ico -->
   <link rel="icon" href="/favicon.ico" />
-  <link rel="stylesheet" href="/styles.css" fetchpriority="high">
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="styles.css" fetchpriority="high">
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/" aria-label="QuizGrid home">
-        <span class="mark">◆</span>
+      <!-- Brand (uses your WebP logo from snippet 1) -->
+      <a class="brand" href="/" aria-label="Trivia Bot home" style="display:flex;align-items:center;gap:.5rem;text-decoration:none">
+        <img src="triviabot.webp" alt="TriviaBot Logo" width="80" height="80" decoding="async" />
         <span class="title">Trivia Bot</span>
       </a>
       <nav class="nav">
@@ -80,197 +91,192 @@
     </div>
   </footer>
 
-<script>
-(function(){
-  const scoreEl   = document.getElementById('score');
-  const streakEl  = document.getElementById('streak');
-  const catLabel  = document.getElementById('catLabel');
-  const diffLabel = document.getElementById('diffLabel');
-  const qWrap     = document.getElementById('qWrap');
-  const qText     = document.getElementById('question');
-  const choicesEl = document.getElementById('choices');
-  const explainEl = document.getElementById('explain');
-  const loader    = document.getElementById('loader');
-  const nextBtn   = document.getElementById('next');
-  const newQBtn   = document.getElementById('newQ');
-  const resetBtn  = document.getElementById('reset');
+  <script>
+  (function(){
+    const scoreEl   = document.getElementById('score');
+    const streakEl  = document.getElementById('streak');
+    const catLabel  = document.getElementById('catLabel');
+    const diffLabel = document.getElementById('diffLabel');
+    const qWrap     = document.getElementById('qWrap');
+    const qText     = document.getElementById('question');
+    const choicesEl = document.getElementById('choices');
+    const explainEl = document.getElementById('explain');
+    const loader    = document.getElementById('loader');
+    const nextBtn   = document.getElementById('next');
+    const newQBtn   = document.getElementById('newQ');
+    const resetBtn  = document.getElementById('reset');
 
-  let score=0, streak=0, current={}, locked=false, category='general', difficulty='medium';
-  let seen=[]; // recent question texts for local de-dup
+    let score=0, streak=0, current={}, locked=false, category='general', difficulty='medium';
+    let seen=[];
 
-  // Restore from localStorage
-  try {
-    const saved = JSON.parse(localStorage.getItem('quizgrid')||'{}');
-    if (typeof saved.score === 'number')  score = saved.score;
-    if (typeof saved.streak === 'number') streak = saved.streak;
-    if (typeof saved.category === 'string') category = saved.category;
-    if (typeof saved.difficulty === 'string') difficulty = saved.difficulty;
-    if (Array.isArray(saved.seen)) seen = saved.seen;
-  } catch(e){}
-
-  function persist(){
-    localStorage.setItem('quizgrid', JSON.stringify({score, streak, category, difficulty, seen}));
-  }
-
-  function setCategory(cat){
-    category = cat;
-    catLabel.textContent = labelFor(cat);
-    document.querySelectorAll('.chip[data-cat]').forEach(ch => {
-      const on = ch.dataset.cat === cat;
-      ch.classList.toggle('active', on);
-      ch.setAttribute('aria-pressed', on);
-    });
-    persist();
-  }
-
-  function setDifficulty(diff){
-    difficulty = diff;
-    diffLabel.textContent = diff[0].toUpperCase()+diff.slice(1);
-    document.querySelectorAll('.chip.diff').forEach(ch => {
-      const on = ch.dataset.diff === diff;
-      ch.classList.toggle('active', on);
-      ch.setAttribute('aria-pressed', on);
-    });
-    persist();
-  }
-
-  function labelFor(cat){
-    switch(cat){
-      case 'dictionary': return 'Dictionary';
-      case 'entertainment': return 'Entertainment';
-      case 'history': return 'History';
-      case 'food_drink': return 'Food & Drink';
-      case 'geography': return 'Geography';
-      case 'science_nature': return 'Science & Nature';
-      default: return 'General';
-    }
-  }
-
-  function remember(q){
-    if (!q) return;
-    const t = q.trim();
-    if (!t) return;
-    seen.push(t);
-    if (seen.length > 100) seen = seen.slice(-150);
-    persist();
-  }
-
-  document.getElementById('year').textContent = new Date().getFullYear();
-
-  // Wire click handlers (no pre-applied actives)
-  document.querySelectorAll('.chip[data-cat]').forEach(btn => {
-    btn.addEventListener('click', () => setCategory(btn.dataset.cat));
-  });
-  document.querySelectorAll('.chip.diff').forEach(btn => {
-    btn.addEventListener('click', () => setDifficulty(btn.dataset.diff));
-  });
-
-  // Force a clean initial state based on saved/default values
-  setCategory(category);
-  setDifficulty(difficulty);
-
-  scoreEl.textContent = score; streakEl.textContent = streak;
-
-  resetBtn.addEventListener('click', () => {
-    score=0; streak=0; seen=[]; persist();
-    scoreEl.textContent=score; streakEl.textContent=streak;
-  });
-
-  function showLoader(show){
-    loader.hidden = !show;
-    loader.setAttribute('aria-hidden', show ? 'false' : 'true');
-    loader.setAttribute('aria-busy', show ? 'true' : 'false');
-    qWrap.hidden = show;
-  }
-
-  async function getQuestion(retry=0){
-    nextBtn.disabled = true;
-    explainEl.hidden = true;
-    explainEl.textContent = '';
-    choicesEl.innerHTML = '';
-    qText.textContent = '';
-    showLoader(true);
-    locked=false;
-
-    let ok = false;
     try {
-      const recent = seen.slice(-75);
-      const seed = Math.floor(Math.random()*1e9);
-      const res = await fetch('/api/trivia', {
-        method:'POST',
-        headers:{'content-type':'application/json'},
-        body: JSON.stringify({ category, difficulty, recent, seed })
-      });
-      const data = await res.json();
+      const saved = JSON.parse(localStorage.getItem('quizgrid')||'{}');
+      if (typeof saved.score === 'number')  score = saved.score;
+      if (typeof saved.streak === 'number') streak = saved.streak;
+      if (typeof saved.category === 'string') category = saved.category;
+      if (typeof saved.difficulty === 'string') difficulty = saved.difficulty;
+      if (Array.isArray(saved.seen)) seen = saved.seen;
+    } catch(e){}
 
-      // Basic client-side de-dup: if repeated, try up to 4 times
-      if (recent.includes((data.question||'').trim()) && retry < 4) {
-        return getQuestion(retry+1);
+    function persist(){
+      localStorage.setItem('quizgrid', JSON.stringify({score, streak, category, difficulty, seen}));
+    }
+
+    function setCategory(cat){
+      category = cat;
+      catLabel.textContent = labelFor(cat);
+      document.querySelectorAll('.chip[data-cat]').forEach(ch => {
+        const on = ch.dataset.cat === cat;
+        ch.classList.toggle('active', on);
+        ch.setAttribute('aria-pressed', on);
+      });
+      persist();
+    }
+
+    function setDifficulty(diff){
+      difficulty = diff;
+      diffLabel.textContent = diff[0].toUpperCase()+diff.slice(1);
+      document.querySelectorAll('.chip.diff').forEach(ch => {
+        const on = ch.dataset.diff === diff;
+        ch.classList.toggle('active', on);
+        ch.setAttribute('aria-pressed', on);
+      });
+      persist();
+    }
+
+    function labelFor(cat){
+      switch(cat){
+        case 'dictionary': return 'Dictionary';
+        case 'entertainment': return 'Entertainment';
+        case 'history': return 'History';
+        case 'food_drink': return 'Food & Drink';
+        case 'geography': return 'Geography';
+        case 'science_nature': return 'Science & Nature';
+        default: return 'General';
       }
-
-      current = data;
-
-      // HIDE the loader immediately before painting the question
-      showLoader(false);
-
-      qText.textContent = data.question;
-      data.choices.forEach((t,i)=>{
-        const li = document.createElement('li');
-        const btn = document.createElement('button');
-        btn.className='choice';
-        btn.textContent = `${i+1}. ${t}`;
-        btn.setAttribute('data-i', i);
-        btn.addEventListener('click', onAnswer);
-        li.appendChild(btn);
-        choicesEl.appendChild(li);
-      });
-
-      remember(data.question);
-      ok = true;
-    } catch (e){
-      qText.textContent = "We couldn't fetch a question. Try again.";
-      console.error(e);
-    } finally {
-      // Ensure loader is hidden even on error so the message shows
-      if (!ok) showLoader(false);
     }
-  }
 
-  function onAnswer(e){
-    if (locked) return;
-    locked = true;
-    const i = +e.currentTarget.getAttribute('data-i');
-    const correct = current.correct_index;
-    const btns = [...document.querySelectorAll('.choice')];
-    btns.forEach((b,idx)=>{
-      if (idx===correct) b.classList.add('ok');
-      if (idx===i && i!==correct) b.classList.add('bad');
-      b.disabled = true;
+    function remember(q){
+      if (!q) return;
+      const t = q.trim();
+      if (!t) return;
+      seen.push(t);
+      if (seen.length > 100) seen = seen.slice(-150);
+      persist();
+    }
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    document.querySelectorAll('.chip[data-cat]').forEach(btn => {
+      btn.addEventListener('click', () => setCategory(btn.dataset.cat));
     });
-    if (i===correct){ score++; streak++; }
-    else { streak=0; }
-    scoreEl.textContent=score; streakEl.textContent=streak;
-    explainEl.textContent = current.explanation || '';
-    explainEl.hidden = !current.explanation;
-    nextBtn.disabled = false;
-    persist();
-  }
+    document.querySelectorAll('.chip.diff').forEach(btn => {
+      btn.addEventListener('click', () => setDifficulty(btn.dataset.diff));
+    });
 
-  nextBtn.addEventListener('click', () => getQuestion());
-  newQBtn.addEventListener('click', () => getQuestion());
-  window.addEventListener('keydown', (e)=>{
-    if (e.key>='1' && e.key<='4'){
-      const idx = (+e.key)-1;
-      const btn = document.querySelector(`.choice[data-i="${idx}"]`);
-      if (btn) btn.click();
-    } else if (e.key==='Enter' && !nextBtn.disabled){
-      nextBtn.click();
+    setCategory(category);
+    setDifficulty(difficulty);
+
+    scoreEl.textContent = score; streakEl.textContent = streak;
+
+    resetBtn.addEventListener('click', () => {
+      score=0; streak=0; seen=[]; persist();
+      scoreEl.textContent=score; streakEl.textContent=streak;
+    });
+
+    function showLoader(show){
+      loader.hidden = !show;
+      loader.setAttribute('aria-hidden', show ? 'false' : 'true');
+      loader.setAttribute('aria-busy', show ? 'true' : 'false');
+      qWrap.hidden = show;
     }
-  });
 
-  // Initial
-  getQuestion();
-})();
-</script>
+    async function getQuestion(retry=0){
+      nextBtn.disabled = true;
+      explainEl.hidden = true;
+      explainEl.textContent = '';
+      choicesEl.innerHTML = '';
+      qText.textContent = '';
+      showLoader(true);
+      locked=false;
+
+      let ok = false;
+      try {
+        const recent = seen.slice(-75);
+        const seed = Math.floor(Math.random()*1e9);
+        const res = await fetch('/api/trivia', {
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body: JSON.stringify({ category, difficulty, recent, seed })
+        });
+        const data = await res.json();
+
+        if (recent.includes((data.question||'').trim()) && retry < 4) {
+          return getQuestion(retry+1);
+        }
+
+        current = data;
+
+        // Hide loader before painting the question
+        showLoader(false);
+
+        qText.textContent = data.question;
+        data.choices.forEach((t,i)=>{
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.className='choice';
+          btn.textContent = `${i+1}. ${t}`;
+          btn.setAttribute('data-i', i);
+          btn.addEventListener('click', onAnswer);
+          li.appendChild(btn);
+          choicesEl.appendChild(li);
+        });
+
+        remember(data.question);
+        ok = true;
+      } catch (e){
+        qText.textContent = "We couldn't fetch a question. Try again.";
+        console.error(e);
+      } finally {
+        if (!ok) showLoader(false);
+      }
+    }
+
+    function onAnswer(e){
+      if (locked) return;
+      locked = true;
+      const i = +e.currentTarget.getAttribute('data-i');
+      const correct = current.correct_index;
+      const btns = [...document.querySelectorAll('.choice')];
+      btns.forEach((b,idx)=>{
+        if (idx===correct) b.classList.add('ok');
+        if (idx===i && i!==correct) b.classList.add('bad');
+        b.disabled = true;
+      });
+      if (i===correct){ score++; streak++; }
+      else { streak=0; }
+      scoreEl.textContent=score; streakEl.textContent=streak;
+      explainEl.textContent = current.explanation || '';
+      explainEl.hidden = !current.explanation;
+      nextBtn.disabled = false;
+      persist();
+    }
+
+    nextBtn.addEventListener('click', () => getQuestion());
+    newQBtn.addEventListener('click', () => getQuestion());
+    window.addEventListener('keydown', (e)=>{
+      if (e.key>='1' && e.key<='4'){
+        const idx = (+e.key)-1;
+        const btn = document.querySelector(`.choice[data-i="${idx}"]`);
+        if (btn) btn.click();
+      } else if (e.key==='Enter' && !nextBtn.disabled){
+        nextBtn.click();
+      }
+    });
+
+    // Initial
+    getQuestion();
+  })();
+  </script>
 </body>
 </html>
