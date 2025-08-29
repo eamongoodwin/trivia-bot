@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuizGrid — AI Trivia</title>
+  <meta name="description" content="A sleek, NYT‑inspired AI trivia game powered by Cloudflare Pages + Workers AI." />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="preload" as="style" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="QuizGrid home">
+        <span class="mark">◆</span>
+        <span class="title">QuizGrid</span>
+      </a>
+      <nav class="nav">
+        <button class="ghost small" id="reset">Reset</button>
+        <a class="ghost small" href="https://developers.cloudflare.com/workers-ai/" target="_blank" rel="noreferrer">Workers AI</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="intro card">
+      <h1>AI Trivia, <em>crossword‑clean</em></h1>
+      <p class="lead">Pick a category and test your wits. Questions are generated on the fly by an AI model running on Cloudflare’s global network.</p>
+      <div class="categories" role="tablist" aria-label="Categories">
+        <button class="chip active" data-cat="general">General</button>
+        <button class="chip" data-cat="dictionary">Dictionary</button>
+        <button class="chip" data-cat="entertainment">Entertainment</button>
+        <button class="chip" data-cat="history">History</button>
+        <button class="chip" data-cat="food_drink">Food &amp; Drink</button>
+        <button class="chip" data-cat="geography">Geography</button>
+        <button class="chip" data-cat="science_nature">Science &amp; Nature</button>
+      </div>
+    </section>
+
+    <section class="status-row">
+      <div class="stat">Score: <strong id="score">0</strong></div>
+      <div class="stat">Streak: <strong id="streak">0</strong></div>
+      <div class="stat">Category: <strong id="catLabel">General</strong></div>
+      <div class="stat"><button id="newQ" class="primary">New Question</button></div>
+    </section>
+
+    <section id="game" class="card game">
+      <div id="loader" class="loader" hidden>
+        <div class="dots"><span></span><span></span><span></span></div>
+        <div class="loader-text">Thinking</div>
+      </div>
+
+      <div id="qWrap" hidden>
+        <h2 id="question" class="question"></h2>
+        <ol id="choices" class="choices" role="listbox" aria-label="Answers"></ol>
+        <div class="explain" id="explain" hidden></div>
+        <div class="row">
+          <button id="next" class="primary" disabled>Next</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tips">
+      <p class="muted">Pro tip: Use <kbd>1</kbd>–<kbd>4</kbd> to answer quickly. Your best score is saved on this device.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <small>© <span id="year"></span> QuizGrid • Built with Cloudflare Pages & Workers AI</small>
+    </div>
+  </footer>
+
+<script>
+(function(){
+  const scoreEl   = document.getElementById('score');
+  const streakEl  = document.getElementById('streak');
+  const catLabel  = document.getElementById('catLabel');
+  const qWrap     = document.getElementById('qWrap');
+  const qText     = document.getElementById('question');
+  const choicesEl = document.getElementById('choices');
+  const explainEl = document.getElementById('explain');
+  const loader    = document.getElementById('loader');
+  const nextBtn   = document.getElementById('next');
+  const newQBtn   = document.getElementById('newQ');
+  const resetBtn  = document.getElementById('reset');
+
+  let score=0, streak=0, current={}, locked=false, category='general';
+
+  // Restore from localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem('quizgrid')||'{}');
+    if (saved.score)  score = +saved.score;
+    if (saved.streak) streak = +saved.streak;
+    if (saved.category) category = saved.category;
+  } catch(e){}
+
+  function persist(){
+    localStorage.setItem('quizgrid', JSON.stringify({score, streak, category}));
+  }
+
+  function setCategory(cat){
+    category = cat;
+    catLabel.textContent = labelFor(cat);
+    document.querySelectorAll('.chip').forEach(ch => ch.classList.toggle('active', ch.dataset.cat===cat));
+    persist();
+  }
+
+  function labelFor(cat){
+    switch(cat){
+      case 'dictionary': return 'Dictionary';
+      case 'entertainment': return 'Entertainment';
+      case 'history': return 'History';
+      case 'food_drink': return 'Food & Drink';
+      case 'geography': return 'Geography';
+      case 'science_nature': return 'Science & Nature';
+      default: return 'General';
+    }
+  }
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+  document.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', () => setCategory(btn.dataset.cat));
+    if (btn.dataset.cat === category) btn.classList.add('active');
+  });
+  catLabel.textContent = labelFor(category);
+  scoreEl.textContent = score; streakEl.textContent = streak;
+
+  resetBtn.addEventListener('click', () => {
+    score=0; streak=0; persist();
+    scoreEl.textContent=score; streakEl.textContent=streak;
+  });
+
+  function showLoader(show){
+    loader.hidden = !show;
+    qWrap.hidden = show;
+  }
+
+  async function getQuestion(){
+    nextBtn.disabled = true;
+    explainEl.hidden = true;
+    explainEl.textContent = '';
+    choicesEl.innerHTML = '';
+    qText.textContent = '';
+    showLoader(true);
+    locked=false;
+
+    try {
+      const res = await fetch('/api/trivia', {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body: JSON.stringify({ category })
+      });
+      const data = await res.json();
+      current = data;
+      qText.textContent = data.question;
+      data.choices.forEach((t,i)=>{
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.className='choice';
+        btn.textContent = `${i+1}. ${t}`;
+        btn.setAttribute('data-i', i);
+        btn.addEventListener('click', onAnswer);
+        li.appendChild(btn);
+        choicesEl.appendChild(li);
+      });
+    } catch (e){
+      qText.textContent = "We couldn't fetch a question. Try again.";
+      console.error(e);
+    } finally {
+      showLoader(false);
+      qWrap.hidden = false;
+    }
+  }
+
+  function onAnswer(e){
+    if (locked) return;
+    locked = true;
+    const i = +e.currentTarget.getAttribute('data-i');
+    const correct = current.correct_index;
+    const btns = [...document.querySelectorAll('.choice')];
+    btns.forEach((b,idx)=>{
+      if (idx===correct) b.classList.add('ok');
+      if (idx===i && i!==correct) b.classList.add('bad');
+      b.disabled = true;
+    });
+    if (i===correct){ score++; streak++; }
+    else { streak=0; }
+    scoreEl.textContent=score; streakEl.textContent=streak;
+    explainEl.textContent = current.explanation || '';
+    explainEl.hidden = !current.explanation;
+    nextBtn.disabled = false;
+    persist();
+  }
+
+  nextBtn.addEventListener('click', getQuestion);
+  newQBtn.addEventListener('click', getQuestion);
+  window.addEventListener('keydown', (e)=>{
+    if (e.key>='1' && e.key<='4'){
+      const idx = (+e.key)-1;
+      const btn = document.querySelector(`.choice[data-i="${idx}"]`);
+      if (btn) btn.click();
+    } else if (e.key==='Enter' && !nextBtn.disabled){
+      nextBtn.click();
+    }
+  });
+
+  // Initial
+  getQuestion();
+})();
+</script>
+</body>
+</html>
