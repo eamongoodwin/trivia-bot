@@ -11,13 +11,13 @@ export const onRequestPost = async (context) => {
     const body = await request.json();
     if (typeof body.category === "string") category = body.category;
     if (typeof body.difficulty === "string") difficulty = body.difficulty;
-    if (Array.isArray(body.recent)) recent = body.recent.slice(-50); // larger recent window
+    if (Array.isArray(body.recent)) recent = body.recent.slice(-50);
     if (Number.isInteger(body.seed)) seed = body.seed;
   } catch (_) {}
 
   const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
-  // ---------- JSON schema (adds optional topic_key/headword/mode and requires answer_text) ----------
+  // ---------- JSON schema (requires answer_text) ----------
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -26,10 +26,10 @@ export const onRequestPost = async (context) => {
       choices: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
       correct_index: { type: "integer", minimum: 0, maximum: 3 },
       explanation: { type: "string" },
-      topic_key: { type: "string" },          // e.g., "Amazon River", "Pythagoras"
-      headword: { type: "string" },           // dictionary only, e.g., "succinct"
-      mode: { type: "string" },               // dictionary: "definition" or "synonym"
-      answer_text: { type: "string" }         // EXACT text of the correct choice
+      topic_key: { type: "string" },
+      headword: { type: "string" },     // dictionary only
+      mode: { type: "string" },         // 'definition' | 'synonym' (dictionary)
+      answer_text: { type: "string" }   // EXACT text of the correct choice
     },
     required: ["question", "choices", "correct_index", "answer_text"]
   };
@@ -44,11 +44,13 @@ export const onRequestPost = async (context) => {
     switch (category) {
       case "dictionary":
         return [
-          "Pick a real English headword (CEFR A2–C1).",
-          "Ask EITHER for the best definition OR the closest synonym.",
+          "This is a VOCABULARY question about one headword.",
           "Return fields headword (the word) and mode ('definition' or 'synonym').",
-          "Choices must be short words or short definitions; mutually exclusive.",
-          "Do not ask general trivia like foods or colors; this is vocabulary."
+          "If mode is 'definition': the stem MUST be exactly like: What is the best definition of \"<headword>\"?",
+          "If mode is 'synonym': the stem MUST be exactly like: Which word is the closest synonym of \"<headword>\"?",
+          "Choices must be mutually exclusive.",
+          "For 'synonym' they should be single words; for 'definition' they should be short definition phrases.",
+          "Do NOT write general-knowledge stems (e.g., 'A person who...')."
         ].join(" ");
       case "science_nature": return "Prefer high-school level science; avoid trick questions.";
       case "entertainment":  return "Use film, TV, music, books, or games; avoid spoilers.";
@@ -120,14 +122,17 @@ export const onRequestPost = async (context) => {
   const normalize = (s) =>
     (s || "")
       .toLowerCase()
-      .replace(/[^\w\s]/g, "")
+      .replace(/[^\w\s-]/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
   const norm = (s) => String(s || "").trim();
 
-  // ---------- Generate with stronger validation + global de-dup ----------
-  const MAX_TRIES = 8; // more chances to avoid repeats / bad keys
+  const looksSingleWord = (s) => /^[A-Za-z-]+$/.test(s || "");
+  const looksPhrase     = (s) => /\s/.test(s || ""); // has at least one space
+
+  // ---------- Generate with validation + global de-dup ----------
+  const MAX_TRIES = 8;
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
     let kvHit = false, kvPut = false;
 
@@ -135,14 +140,14 @@ export const onRequestPost = async (context) => {
       const aiRes = await env.AI.run(MODEL, {
         messages,
         response_format: { type: "json_schema", json_schema: schema },
-        temperature: 0.95, // more diversity
+        temperature: 0.95,
         top_p: 0.95,
         seed: seed + attempt * 1337
       });
 
-      // ---- (3) Validate answer_text vs choices/correct_index ----
       const payload = aiRes?.response ?? aiRes;
 
+      // ---- Validate core structure ----
       const qText = norm(payload?.question);
       const choices = Array.isArray(payload?.choices) ? payload.choices.map(norm) : [];
       const answerText = norm(payload?.answer_text);
@@ -151,14 +156,35 @@ export const onRequestPost = async (context) => {
       const uniqueCount = new Set(choices.map(c => c.toLowerCase())).size;
       const idxFromAnswer = choices.findIndex(c => c.toLowerCase() === answerText.toLowerCase());
 
-      if (
-        !qText ||
-        choices.length !== 4 ||
-        uniqueCount !== 4 ||
-        idxFromAnswer === -1 ||
-        idxFromAnswer !== correctIndex
-      ) {
+      if (!qText || choices.length !== 4 || uniqueCount !== 4 || idxFromAnswer === -1 || idxFromAnswer !== correctIndex) {
         throw new Error("Validation failed: answer/choices mismatch or duplicates");
+      }
+
+      // ---- Extra validation for dictionary category ----
+      if (category === "dictionary") {
+        const head = norm(payload?.headword);
+        const mode = String(payload?.mode || "").toLowerCase();
+
+        if (!head || !["definition", "synonym"].includes(mode)) {
+          throw new Error("Validation failed: dictionary requires headword and mode");
+        }
+
+        const qLower = qText.toLowerCase();
+        const headLower = head.toLowerCase();
+
+        // Stem must include headword and mode keyword
+        if (!qLower.includes(headLower)) throw new Error("Validation failed: dictionary stem missing headword");
+        if (mode === "definition" && !qLower.includes("definition")) throw new Error("Validation failed: stem must contain 'definition'");
+        if (mode === "synonym" && !qLower.includes("synonym")) throw new Error("Validation failed: stem must contain 'synonym'");
+
+        // Choice shape rules
+        if (mode === "synonym") {
+          if (choices.some(c => !looksSingleWord(c))) throw new Error("Validation failed: synonym choices must be single words");
+          if (answerText.toLowerCase() === headLower) throw new Error("Validation failed: synonym answer cannot equal headword");
+        } else {
+          if (choices.some(c => !looksPhrase(c))) throw new Error("Validation failed: definition choices should look like short phrases");
+          if (choices.some(c => c.toLowerCase() === headLower)) throw new Error("Validation failed: definition choices cannot be the headword");
+        }
       }
 
       // ---- Subject key for de-dup (dictionary uses headword when possible) ----
@@ -170,7 +196,7 @@ export const onRequestPost = async (context) => {
       const normalizedQ = normalize(qText);
       const normalizedSubject = normalize(subject);
 
-      // Extra client-provided recent guard (fuzzy)
+      // Fuzzy recent guard from client
       const isRecentDupe = recent.some(r => {
         const n = normalize(r);
         return n === normalizedQ ||
@@ -187,11 +213,11 @@ export const onRequestPost = async (context) => {
         kvHit = true;
         if (attempt < MAX_TRIES - 1) continue;
       } else if (env.TRIVIA_KV) {
-        await env.TRIVIA_KV.put(kvKey, "1", { expirationTtl: 60 * 60 * 24 * 30 }); // 30 days
+        await env.TRIVIA_KV.put(kvKey, "1", { expirationTtl: 60 * 60 * 24 * 30 });
         kvPut = true;
       }
 
-      // If valid and not a duplicate, return result
+      // Good to return
       const out = {
         id: crypto.randomUUID(),
         question: qText,
@@ -214,7 +240,7 @@ export const onRequestPost = async (context) => {
         f._debug = { attempt, error: "fallback" };
         return new Response(JSON.stringify(f), { headers: jsonHeaders });
       }
-      // otherwise, loop and try again with a new seed
+      // otherwise loop and try again with new seed
     }
   }
 
