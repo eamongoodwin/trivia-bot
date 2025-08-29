@@ -19,7 +19,7 @@ export const onRequestPost = async (context) => {
   // ---------- Model & sampling tuned for accuracy ----------
   const MODEL_MAP = {
     easy:   "@cf/meta/llama-3.1-8b-instruct",       // Better accuracy than fast version
-    medium: "@cf/meta/llama-3.1-70b-instruct",      // Upgrade to 70b for better quality
+    medium: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
     hard:   "@cf/meta/llama-3.1-70b-instruct"       // Keep 70b for consistency
   };
   const MODEL = MODEL_MAP[difficulty] || MODEL_MAP.medium;
