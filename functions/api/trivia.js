@@ -15,15 +15,22 @@ export const onRequestPost = async (context) => {
     if (Number.isInteger(body.seed)) seed = body.seed;
   } catch (_) {}
 
+  // ---------- Model & sampling tuned for speed vs quality ----------
   const MODEL_MAP = {
-    easy:   "@cf/meta/llama-3.1-8b-instruct-fast",
-    medium: "@cf/meta/llama-3.1-8b-instruct",      // higher quality than -fast
-    hard:   "@cf/meta/llama-3.1-70b-instruct"      // larger model for tough items
+    easy:   "@cf/meta/llama-3.1-8b-instruct-fast", // snappy
+    medium: "@cf/meta/llama-3.1-8b-instruct",       // higher quality
+    hard:   "@cf/meta/llama-3.1-70b-instruct"       // best for tough items
   };
   const MODEL = MODEL_MAP[difficulty] || MODEL_MAP.medium;
 
+  const TEMP  = (difficulty === "hard") ? 0.80 : 0.85;
+  const TOP_P = (difficulty === "hard") ? 0.90 : 0.92;
+
+  // Fewer retries now that validation is strict and models are stronger
+  const MAX_TRIES = 5; // was 8
+
   // ---------- JSON schema ----------
-  // Require answer_text AND topic_key (the canonical subject == correct answer).
+  // Require answer_text AND topic_key (canonical subject == correct answer).
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -32,10 +39,8 @@ export const onRequestPost = async (context) => {
       choices: { type: "array", items: { type: "string" }, minItems: 4, maxItems: 4 },
       correct_index: { type: "integer", minimum: 0, maximum: 3 },
       explanation: { type: "string" },
-      // dictionary extras (kept for stronger checks)
-      headword: { type: "string" },
-      mode: { type: "string" }, // 'definition' | 'synonym'
-      // NEW required fields:
+      headword: { type: "string" }, // dictionary only
+      mode: { type: "string" },     // 'definition' | 'synonym' (dictionary)
       answer_text: { type: "string" },
       topic_key: { type: "string" } // MUST equal answer_text exactly
     },
@@ -141,19 +146,23 @@ export const onRequestPost = async (context) => {
   const looksSingleWord = (s) => /^[A-Za-z-]+$/.test(s || "");
   const looksPhrase     = (s) => /\s/.test(s || "");
 
+  const firstSentence = (s) => {
+    const str = String(s || "").trim();
+    const m = str.match(/^.*?[.!?](?:\s|$)/);
+    return (m ? m[0] : str).trim();
+  };
+
   // ---------- Generate with validation + global de-dup ----------
-  const MAX_TRIES = 8;
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
     let kvHit = false, kvPut = false;
 
     try {
-      const temp = (difficulty === "hard") ? 0.8 : 0.9;
       const aiRes = await env.AI.run(MODEL, {
         messages,
         response_format: { type: "json_schema", json_schema: schema },
-        temperature: temp,
-        top_p: 0.95,
-        seed: seed + attempt * 1337
+        temperature: TEMP,
+        top_p: TOP_P,
+        seed: seed + attempt * 104729 // large prime step for variety
       });
 
       const payload = aiRes?.response ?? aiRes;
@@ -201,7 +210,7 @@ export const onRequestPost = async (context) => {
         }
       }
 
-      // ---- Recent fuzzy guard (tightened) ----
+      // ---- Recent fuzzy guard ----
       const normalizedQ = normalize(qText);
       const isRecentDupe = recent.some(r => {
         const n = normalize(r);
@@ -231,29 +240,32 @@ export const onRequestPost = async (context) => {
         question: qText,
         choices,
         correct_index: correctIndex,
-        explanation: norm(payload.explanation),
+        explanation: firstSentence(payload.explanation),
         _debug: {
           validated: true,
           attempt, kvHit, kvPut,
           dedup_by: keySubject.slice(0,64),
           mode: payload.mode || null,
-          headword: payload.headword || null
+          headword: payload.headword || null,
+          model: MODEL,
+          temp: TEMP,
+          top_p: TOP_P
         }
       };
       return new Response(JSON.stringify(out), { headers: jsonHeaders });
 
     } catch (err) {
+      // try again with a new seed unless we've exhausted attempts
       if (attempt === MAX_TRIES - 1) {
         const f = fallback();
-        f._debug = { attempt, error: "fallback" };
+        f._debug = { attempt, error: "fallback", model: MODEL };
         return new Response(JSON.stringify(f), { headers: jsonHeaders });
       }
-      // otherwise try a new seed
     }
   }
 
   // Safety net
   const f = fallback();
-  f._debug = { attempt: MAX_TRIES, error: "exhausted" };
+  f._debug = { attempt: MAX_TRIES, error: "exhausted", model: MODEL };
   return new Response(JSON.stringify(f), { headers: jsonHeaders });
 };
