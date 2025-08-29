@@ -26,11 +26,10 @@ export const onRequestPost = async (context) => {
   const TEMP  = (difficulty === "hard") ? 0.80 : 0.85;
   const TOP_P = (difficulty === "hard") ? 0.90 : 0.92;
 
-  // Fewer retries now that validation is strict and models are stronger
-  const MAX_TRIES = 5; // was 8
+  // Fewer retries with stronger validation/models
+  const MAX_TRIES = 5;
 
   // ---------- JSON schema ----------
-  // Require answer_text AND topic_key (canonical subject == correct answer).
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -79,7 +78,7 @@ export const onRequestPost = async (context) => {
       recent.map(q => (q||"").toString().trim()).filter(Boolean).join("\n- ")
     : "Vary subtopics and avoid overused questions.";
 
-  // IMPORTANT: tell the model to set topic_key to the correct answer exactly.
+  // IMPORTANT: set topic_key to the correct answer exactly.
   const messages = [
     {
       role: "system",
@@ -152,9 +151,16 @@ export const onRequestPost = async (context) => {
     return (m ? m[0] : str).trim();
   };
 
-  // ---------- Generate with validation + global de-dup ----------
+  const kvEnabled = !!env.TRIVIA_KV;
+
+  // Ephemeral in-memory guard (per runtime instance) if KV missing
+  globalThis.__TRIVIA_LAST = globalThis.__TRIVIA_LAST || new Map(); // key: `${category}:${difficulty}` -> normalized subject
+  const memoryLastKey = `${category}:${difficulty}`;
+
+  // ---------- Generate with validation + global / immediate de-dup ----------
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
-    let kvHit = false, kvPut = false;
+    let kvHit = false, kvPut = false, lastHit = false;
+    let kvKey = null, lastKey = null;
 
     try {
       const aiRes = await env.AI.run(MODEL, {
@@ -223,15 +229,36 @@ export const onRequestPost = async (context) => {
       // ---- KV global de-dup by topic_key (== correct answer) ----
       const keySubject = normalize(topicKey); // canonical dedup target
       const h = await sha256(`${category}:${difficulty}:${keySubject}`);
-      const kvKey = `q:${category}:${h}`;
-      const seen = env.TRIVIA_KV ? await env.TRIVIA_KV.get(kvKey) : null;
+      kvKey = `q:${category}:${h}`;
+      const seen = kvEnabled ? await env.TRIVIA_KV.get(kvKey) : null;
 
       if (seen) {
         kvHit = true;
         if (attempt < MAX_TRIES - 1) continue;
-      } else if (env.TRIVIA_KV) {
-        await env.TRIVIA_KV.put(kvKey, "1", { expirationTtl: 60 * 60 * 24 * 30 }); // 30 days
-        kvPut = true;
+      }
+
+      // ---- Back-to-back guard (short TTL) ----
+      // Prevent same subject immediately repeating across users
+      lastKey = `last:${category}:${difficulty}`;
+      let lastSubject = null;
+      if (kvEnabled) lastSubject = await env.TRIVIA_KV.get(lastKey);
+      if (!kvEnabled) lastSubject = globalThis.__TRIVIA_LAST.get(memoryLastKey) || null;
+
+      if (lastSubject && normalize(lastSubject) === keySubject && attempt < MAX_TRIES - 1) {
+        lastHit = true;
+        continue;
+      }
+
+      // ---- If we accept this item, write KV + last-subject ----
+      if (kvEnabled) {
+        if (!seen) {
+          await env.TRIVIA_KV.put(kvKey, "1", { expirationTtl: 60 * 60 * 24 * 30 }); // 30 days
+          kvPut = true;
+        }
+        await env.TRIVIA_KV.put(lastKey, keySubject, { expirationTtl: 60 * 10 }); // 10 minutes
+      } else {
+        globalThis.__TRIVIA_LAST.set(memoryLastKey, keySubject);
+        kvPut = false;
       }
 
       // ---- Success ----
@@ -244,6 +271,10 @@ export const onRequestPost = async (context) => {
         _debug: {
           validated: true,
           attempt, kvHit, kvPut,
+          kvEnabled,
+          kvKey,
+          lastKey,
+          lastHit,
           dedup_by: keySubject.slice(0,64),
           mode: payload.mode || null,
           headword: payload.headword || null,
@@ -258,7 +289,7 @@ export const onRequestPost = async (context) => {
       // try again with a new seed unless we've exhausted attempts
       if (attempt === MAX_TRIES - 1) {
         const f = fallback();
-        f._debug = { attempt, error: "fallback", model: MODEL };
+        f._debug = { attempt, error: "fallback", model: MODEL, kvEnabled };
         return new Response(JSON.stringify(f), { headers: jsonHeaders });
       }
     }
@@ -266,6 +297,6 @@ export const onRequestPost = async (context) => {
 
   // Safety net
   const f = fallback();
-  f._debug = { attempt: MAX_TRIES, error: "exhausted", model: MODEL };
+  f._debug = { attempt: MAX_TRIES, error: "exhausted", model: MODEL, kvEnabled };
   return new Response(JSON.stringify(f), { headers: jsonHeaders });
 };
