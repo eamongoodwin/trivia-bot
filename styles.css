@@ -124,6 +124,8 @@ body{
 .row{ display:flex; gap:10px; margin-top:10px; }
 
 .loader{ display:grid; place-items:center; padding:40px 0; }
+.loader[hidden] { display: none !important; }
+
 .dots{ display:inline-flex; gap:6px; align-items:center; margin-bottom:6px; }
 .dots span{ width:8px; height:8px; border-radius:50%; background:#222; display:inline-block; animation:b 1.2s infinite ease-in-out; }
 .dots span:nth-child(2){ animation-delay:.15s }
