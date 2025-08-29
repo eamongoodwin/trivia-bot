@@ -174,3 +174,28 @@ body{
 [data-theme="dark"] .choice{ background:#0d1b2a; border-color: rgba(255,255,255,.12); color:#e9eef5; }
 
 [data-theme="dark"] .site-footer{ border-top:1px solid rgba(255,255,255,.08); }
+
+/* Nav ghost buttons: ensure readable contrast in dark */
+.ghost{ color: var(--ink); }
+.ghost:hover{ background: rgba(0,0,0,.06); }
+
+@media (prefers-color-scheme: dark){
+  .ghost{
+    color: var(--ink);
+    background: rgba(255,255,255,.06);
+    border-color: rgba(255,255,255,.25);
+  }
+  .ghost:hover{ background: rgba(255,255,255,.12); }
+}
+
+/* If manual toggle is active, mirror it */
+[data-theme="dark"] .ghost{
+  color: var(--ink);
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.25);
+}
+[data-theme="dark"] .ghost:hover{ background: rgba(255,255,255,.12); }
+
+/* Optional: make tiny pills a bit bolder */
+.ghost.small{ font-weight:600; }
+
