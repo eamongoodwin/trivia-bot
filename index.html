@@ -7,16 +7,13 @@
   <meta name="description" content="A sleek, adaptive AI trivia game" />
   <meta name="color-scheme" content="light dark" />
 
-  <!-- Favicons (from snippet 1) -->
   <link rel="icon" type="image/webp" href="favicon_triviabot.webp" sizes="16x16">
   <link rel="icon" type="image/webp" href="favicon_triviabot.webp" sizes="32x32">
   <link rel="icon" type="image/webp" href="favicon_triviabot.webp" sizes="48x48">
   <link rel="apple-touch-icon" href="favicon_triviabot.webp">
 
-  <!-- Optional fallback .ico -->
   <link rel="icon" href="/favicon.ico" />
 
-  <!-- Early theme boot (prevents flash) -->
   <script>
     (function () {
       const saved = localStorage.getItem('theme'); // "light" | "dark" | null
@@ -26,20 +23,18 @@
     })();
   </script>
 
-  <!-- CSS -->
   <link rel="stylesheet" href="styles.css?v=3" fetchpriority="high">
 </head>
 <body>
   <header class="site-header">
     <div class="wrap">
-      <!-- Brand (uses your WebP logo from snippet 1) -->
       <a class="brand" href="/" aria-label="Trivia Bot home" style="display:flex;align-items:center;gap:.5rem;text-decoration:none">
         <img src="triviabot.webp" alt="TriviaBot Logo" width="80" height="80" decoding="async" />
         <span class="title">TriviaBot</span>
       </a>
       <nav class="nav">
         <button class="ghost small" id="reset">Reset</button>
-        <!-- Theme toggle button -->
+
         <button id="themeToggle" class="ghost small" aria-pressed="false" title="Toggle theme">
           <span id="themeIcon" aria-hidden="true">☀︎</span>
           <span id="themeText">Light</span>
@@ -232,7 +227,6 @@
 
         current = data;
 
-        // Hide loader before painting the question
         showLoader(false);
 
         qText.textContent = data.question;
@@ -289,12 +283,10 @@
       }
     });
 
-    // Initial
     getQuestion();
   })();
   </script>
 
-  <!-- Theme toggle logic -->
   <script>
     (function () {
       const root = document.documentElement;
@@ -311,7 +303,6 @@
         text.textContent = isDark ? 'Dark' : 'Light';
       }
 
-      // Initialize from attribute set in the head script
       apply(root.getAttribute('data-theme') || 'light');
 
       btn.addEventListener('click', () => {
