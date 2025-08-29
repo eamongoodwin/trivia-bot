@@ -154,25 +154,308 @@ export const onRequestPost = async (context) => {
 
   // ---------- Fallback questions pool ----------
   const fallbacks = [
-    {
-      question: "Which planet is known as the 'Red Planet'?",
-      choices: ["Venus", "Jupiter", "Mars", "Saturn"],
-      correct_index: 2,
-      explanation: "Mars appears red due to iron oxide on its surface."
-    },
-    {
-      question: "What is the smallest country in the world?",
-      choices: ["Monaco", "Vatican City", "San Marino", "Liechtenstein"],
-      correct_index: 1,
-      explanation: "Vatican City covers just 0.17 square miles."
-    },
-    {
-      question: "Which element has the chemical symbol 'Au'?",
-      choices: ["Silver", "Aluminum", "Gold", "Argon"],
-      correct_index: 2,
-      explanation: "Au comes from the Latin word 'aurum' meaning gold."
-    }
-  ];
+  {
+    question: "What is the largest ocean on Earth?",
+    choices: ["Atlantic Ocean", "Indian Ocean", "Pacific Ocean", "Arctic Ocean"],
+    correct_index: 2,
+    explanation: "The Pacific Ocean is the largest and deepest of Earth's ocean basins."
+  },
+  {
+    question: "What is the capital city of Japan?",
+    choices: ["Kyoto", "Osaka", "Tokyo", "Nagoya"],
+    correct_index: 2,
+    explanation: "Tokyo has been Japan's capital since 1869."
+  },
+  {
+    question: "What is the hardest natural substance?",
+    choices: ["Quartz", "Diamond", "Gold", "Graphite"],
+    correct_index: 1,
+    explanation: "Diamond's strong carbon lattice makes it the hardest natural material."
+  },
+  {
+    question: "Which animal is the tallest on land?",
+    choices: ["Elephant", "Giraffe", "Horse", "Camel"],
+    correct_index: 1,
+    explanation: "Adult giraffes can exceed 5.5 meters (18 feet) in height."
+  },
+  {
+    question: "H2O is the chemical formula for what substance?",
+    choices: ["Hydrogen", "Water", "Oxygen", "Salt"],
+    correct_index: 1,
+    explanation: "H2O represents water, composed of two hydrogen atoms and one oxygen."
+  },
+  {
+    question: "Plants make their own food using which process?",
+    choices: ["Fermentation", "Respiration", "Photosynthesis", "Germination"],
+    correct_index: 2,
+    explanation: "Photosynthesis converts light energy into chemical energy in plants."
+  },
+  {
+    question: "Who wrote the play 'Romeo and Juliet'?",
+    choices: ["Charles Dickens", "Leo Tolstoy", "William Shakespeare", "Mark Twain"],
+    correct_index: 2,
+    explanation: "Shakespeare wrote the tragedy in the late 16th century."
+  },
+  {
+    question: "How many continents are there on Earth?",
+    choices: ["Five", "Six", "Seven", "Eight"],
+    correct_index: 2,
+    explanation: "The widely taught model counts seven continents."
+  },
+  {
+    question: "Which gas makes up most of Earth's atmosphere?",
+    choices: ["Oxygen", "Nitrogen", "Carbon dioxide", "Argon"],
+    correct_index: 1,
+    explanation: "Nitrogen is about 78% of the atmosphere by volume."
+  },
+  {
+    question: "Which is the fastest land animal?",
+    choices: ["Lion", "Cheetah", "Pronghorn", "Horse"],
+    correct_index: 1,
+    explanation: "Cheetahs can sprint up to about 100–120 km/h in short bursts."
+  },
+  {
+    question: "Which is the largest planet in our Solar System?",
+    choices: ["Earth", "Saturn", "Jupiter", "Neptune"],
+    correct_index: 2,
+    explanation: "Jupiter is the biggest, with a mass over 300 times Earth's."
+  },
+  {
+    question: "What is the currency of the United Kingdom?",
+    choices: ["Euro", "Pound sterling", "US Dollar", "Krona"],
+    correct_index: 1,
+    explanation: "The British currency is the pound sterling (GBP)."
+  },
+  {
+    question: "Which organ pumps blood through the body?",
+    choices: ["Lungs", "Kidneys", "Heart", "Liver"],
+    correct_index: 2,
+    explanation: "The heart circulates blood via rhythmic contractions."
+  },
+  {
+    question: "Which common metal is strongly attracted to magnets?",
+    choices: ["Copper", "Iron", "Aluminum", "Gold"],
+    correct_index: 1,
+    explanation: "Iron is ferromagnetic and is strongly attracted to magnets."
+  },
+  {
+    question: "What is the square root of 81?",
+    choices: ["7", "8", "9", "10"],
+    correct_index: 2,
+    explanation: "9 × 9 equals 81."
+  },
+  {
+    question: "Which is the longest river in Africa?",
+    choices: ["Niger", "Nile", "Congo", "Zambezi"],
+    correct_index: 1,
+    explanation: "The Nile flows over 6,600 km through northeastern Africa."
+  },
+  {
+    question: "What is the chemical symbol for sodium?",
+    choices: ["So", "S", "Na", "Sd"],
+    correct_index: 2,
+    explanation: "Na comes from the Latin name 'natrium' for sodium."
+  },
+  {
+    question: "Which country is home to the Great Barrier Reef?",
+    choices: ["New Zealand", "Australia", "Fiji", "Indonesia"],
+    correct_index: 1,
+    explanation: "The Great Barrier Reef lies off Australia's northeast coast."
+  },
+  {
+    question: "Who painted the 'Mona Lisa'?",
+    choices: ["Michelangelo", "Raphael", "Leonardo da Vinci", "Vincent van Gogh"],
+    correct_index: 2,
+    explanation: "Leonardo painted it in the early 16th century."
+  },
+  {
+    question: "What is the first element on the periodic table?",
+    choices: ["Helium", "Hydrogen", "Lithium", "Carbon"],
+    correct_index: 1,
+    explanation: "Hydrogen has atomic number 1."
+  },
+  {
+    question: "Which language has the most native speakers?",
+    choices: ["English", "Spanish", "Mandarin Chinese", "Hindi"],
+    correct_index: 2,
+    explanation: "Mandarin Chinese has the largest number of native speakers."
+  },
+  {
+    question: "Which is the largest hot desert on Earth?",
+    choices: ["Gobi", "Kalahari", "Sahara", "Arabian"],
+    correct_index: 2,
+    explanation: "The Sahara is the largest hot desert by area."
+  },
+  {
+    question: "How many degrees are in a right angle?",
+    choices: ["45", "60", "90", "180"],
+    correct_index: 2,
+    explanation: "A right angle measures exactly 90 degrees."
+  },
+  {
+    question: "Which instrument has keys, pedals, and strings?",
+    choices: ["Harp", "Violin", "Piano", "Trumpet"],
+    correct_index: 2,
+    explanation: "A piano uses hammers to strike strings when keys are pressed."
+  },
+  {
+    question: "What is the closest star to Earth?",
+    choices: ["Alpha Centauri", "Sirius", "Betelgeuse", "The Sun"],
+    correct_index: 3,
+    explanation: "Our Sun is the nearest star to Earth."
+  },
+  {
+    question: "What protein in red blood cells carries oxygen?",
+    choices: ["Myoglobin", "Hemoglobin", "Albumin", "Collagen"],
+    correct_index: 1,
+    explanation: "Hemoglobin binds oxygen for transport in the bloodstream."
+  },
+  {
+    question: "Which country is nicknamed the 'Land of the Rising Sun'?",
+    choices: ["China", "Japan", "Thailand", "South Korea"],
+    correct_index: 1,
+    explanation: "Japan's name is linked to the eastern sunrise."
+  },
+  {
+    question: "Which planet has the most prominent rings?",
+    choices: ["Venus", "Mars", "Saturn", "Mercury"],
+    correct_index: 2,
+    explanation: "Saturn's ring system is the most extensive and visible."
+  },
+  {
+    question: "What is the largest land carnivore?",
+    choices: ["Tiger", "Grizzly bear", "Polar bear", "Wolf"],
+    correct_index: 2,
+    explanation: "Adult male polar bears are the largest land carnivores."
+  },
+  {
+    question: "What instrument is used to measure temperature?",
+    choices: ["Thermometer", "Barometer", "Altimeter", "Hygrometer"],
+    correct_index: 0,
+    explanation: "A thermometer measures temperature."
+  },
+  {
+    question: "Which cell organelle is known as the powerhouse of the cell?",
+    choices: ["Nucleus", "Mitochondria", "Ribosome", "Golgi apparatus"],
+    correct_index: 1,
+    explanation: "Mitochondria generate most of the cell's ATP."
+  },
+  {
+    question: "What is the official language of Brazil?",
+    choices: ["Spanish", "Portuguese", "French", "Italian"],
+    correct_index: 1,
+    explanation: "Brazil's official and most spoken language is Portuguese."
+  },
+  {
+    question: "How many sides does a hexagon have?",
+    choices: ["Five", "Six", "Seven", "Eight"],
+    correct_index: 1,
+    explanation: "A hexagon is a six-sided polygon."
+  },
+  {
+    question: "In which city is the Colosseum located?",
+    choices: ["Athens", "Rome", "Istanbul", "Barcelona"],
+    correct_index: 1,
+    explanation: "The Colosseum is an ancient amphitheater in Rome, Italy."
+  },
+  {
+    question: "How many players are on the field for one soccer team?",
+    choices: ["9", "10", "11", "12"],
+    correct_index: 2,
+    explanation: "Association football has 11 players per team on the field."
+  },
+  {
+    question: "What is the chemical formula for table salt?",
+    choices: ["Na2CO3", "NaCl", "KCl", "HCl"],
+    correct_index: 1,
+    explanation: "Common table salt is sodium chloride, NaCl."
+  },
+  {
+    question: "Which is the largest continent by area?",
+    choices: ["Africa", "Europe", "Asia", "North America"],
+    correct_index: 2,
+    explanation: "Asia is the largest continent."
+  },
+  {
+    question: "Which vitamin is produced in the skin when exposed to sunlight?",
+    choices: ["Vitamin A", "Vitamin B12", "Vitamin C", "Vitamin D"],
+    correct_index: 3,
+    explanation: "UV light helps the skin synthesize vitamin D."
+  },
+  {
+    question: "What do bees primarily collect to make honey?",
+    choices: ["Nectar", "Pollen", "Sap", "Dew"],
+    correct_index: 0,
+    explanation: "Bees convert flower nectar into honey."
+  },
+  {
+    question: "Cairo is the capital of which country?",
+    choices: ["Morocco", "Egypt", "Tunisia", "Sudan"],
+    correct_index: 1,
+    explanation: "Cairo is the capital and largest city of Egypt."
+  },
+  {
+    question: "Which instrument measures atmospheric pressure?",
+    choices: ["Anemometer", "Barometer", "Hygrometer", "Thermometer"],
+    correct_index: 1,
+    explanation: "A barometer measures air pressure."
+  },
+  {
+    question: "Who proposed the theory of relativity?",
+    choices: ["Isaac Newton", "Galileo Galilei", "Marie Curie", "Albert Einstein"],
+    correct_index: 3,
+    explanation: "Einstein introduced special (1905) and general (1915) relativity."
+  },
+  {
+    question: "Which metal is liquid at room temperature?",
+    choices: ["Mercury", "Aluminum", "Sodium", "Nickel"],
+    correct_index: 0,
+    explanation: "Mercury is a liquid metal at standard conditions."
+  },
+  {
+    question: "Which country gifted the Statue of Liberty to the United States?",
+    choices: ["France", "Spain", "Italy", "Germany"],
+    correct_index: 0,
+    explanation: "France presented the statue in 1886 as a symbol of friendship."
+  },
+  {
+    question: "What is the name of our galaxy?",
+    choices: ["Andromeda", "Sombrero", "Milky Way", "Triangulum"],
+    correct_index: 2,
+    explanation: "Earth is located in the Milky Way galaxy."
+  },
+  {
+    question: "Which organ primarily detoxifies chemicals in the body?",
+    choices: ["Stomach", "Liver", "Pancreas", "Spleen"],
+    correct_index: 1,
+    explanation: "The liver metabolizes and detoxifies many substances."
+  },
+  {
+    question: "At sea level, what is the boiling point of water in Celsius?",
+    choices: ["90°C", "95°C", "100°C", "110°C"],
+    correct_index: 2,
+    explanation: "Water boils at 100°C at standard atmospheric pressure."
+  },
+  {
+    question: "On which continent is the Amazon Rainforest located?",
+    choices: ["Africa", "Asia", "South America", "Australia"],
+    correct_index: 2,
+    explanation: "Most of the Amazon lies within South America, chiefly Brazil."
+  },
+  {
+    question: "What is the largest bone in the human body?",
+    choices: ["Tibia", "Femur", "Humerus", "Radius"],
+    correct_index: 1,
+    explanation: "The femur (thighbone) is the body's longest and strongest bone."
+  },
+  {
+    question: "Which instrument typically has six strings in standard tuning?",
+    choices: ["Violin", "Cello", "Guitar", "Flute"],
+    correct_index: 2,
+    explanation: "A standard guitar has six strings tuned E–A–D–G–B–E."
+  }
+];
+
 
   const fallback = () => {
     const fb = fallbacks[Math.floor(Math.random() * fallbacks.length)];
