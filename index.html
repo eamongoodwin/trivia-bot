@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trivia-Bot</title>
+  <title>TriviaBot</title>
   <meta name="description" content="A sleek, adaptive AI trivia game" />
   <meta name="color-scheme" content="light dark" />
 
@@ -13,12 +13,10 @@
   <link rel="apple-touch-icon" href="favicon_triviabot.webp">
 
   <link rel="icon" href="/favicon.ico" />
-  
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
   <script>
     (function () {
-      const saved = localStorage.getItem('theme'); 
+      const saved = localStorage.getItem('theme'); // "light" | "dark" | null
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const theme = saved || (prefersDark ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', theme);
@@ -31,8 +29,8 @@
   <header class="site-header">
     <div class="wrap">
       <a class="brand" href="/" aria-label="Trivia Bot home" style="display:flex;align-items:center;gap:.5rem;text-decoration:none">
-        <img src="triviabot.webp" alt="Trivia-Bot Logo" width="80" height="80" decoding="async" />
-        <span class="title">Trivia-Bot</span>
+        <img src="triviabot.webp" alt="TriviaBot Logo" width="80" height="80" decoding="async" />
+        <span class="title">TriviaBot</span>
       </a>
       <nav class="nav">
         <button class="ghost small" id="reset">Reset</button>
@@ -47,7 +45,7 @@
 
   <main class="wrap">
     <section class="intro card">
-      <h1>Trivia-Bot</h1>
+      <h1>TriviaBot</h1>
       <p class="lead">Pick a category and test your wits. Questions are generated on the fly.</p>
 
       <div class="categories" role="tablist" aria-label="Categories">
@@ -95,21 +93,11 @@
     <section class="tips">
       <p class="muted">Pro tip: Use button <kbd>1</kbd>-><kbd>4</kbd> to answer quickly. Your best score is saved on this device.</p>
     </section>
-    <!-- Visible Turnstile widget -->
-      <div id="ts-widget"
-           class="cf-turnstile"
-           data-sitekey="0x4AAAAAABv9ADJDS5ltuPkd"
-           data-size="normal"
-           data-theme="auto"
-           data-appearance="always">
-      </div>
-
-
   </main>
 
   <footer class="site-footer">
     <div class="wrap">
-      <small>© <span id="year"></span> Trivia-Bot • All Rights reserved</small>
+      <small>© <span id="year"></span> TriviaBot • All Rights reserved</small>
     </div>
   </footer>
 
@@ -213,35 +201,6 @@
       qWrap.hidden = show;
     }
 
-    // --- Turnstile helpers for a VISIBLE widget (implicit rendering) ---
-    async function waitForTurnstileReady() {
-      const sel = '#ts-widget';
-      const start = Date.now();
-      while (
-        (!window.turnstile || !document.querySelector(sel)) &&
-        Date.now() - start < 6000
-      ) {
-        await new Promise(r => setTimeout(r, 50));
-      }
-      return !!(window.turnstile && document.querySelector(sel));
-    }
-
-    async function getTurnstileToken() {
-      const ok = await waitForTurnstileReady();
-      if (!ok) return "";
-      const sel = '#ts-widget';
-      try { turnstile.reset(sel); } catch (_) {}
-      let token = "";
-      const start = Date.now();
-      while (!token && Date.now() - start < 7000) {
-        try { token = turnstile.getResponse(sel) || ""; } catch (_) {}
-        if (token) break;
-        await new Promise(r => setTimeout(r, 80));
-      }
-      return token;
-    }
-
-    // --- Session-gated getQuestion (tries without token first; only fetches token if needed) ---
     async function getQuestion(retry=0){
       nextBtn.disabled = true;
       explainEl.hidden = true;
@@ -252,43 +211,17 @@
       locked=false;
 
       let ok = false;
-
-      async function doFetch(withToken=false){
+      try {
         const recent = seen.slice(-75);
         const seed = Math.floor(Math.random()*1e9);
-        let body = { category, difficulty, recent, seed };
-
-        if (withToken) {
-          const token = await getTurnstileToken();
-          if (!token) throw new Error("Turnstile did not return a token");
-          body.turnstile_token = token;
-        }
-
         const res = await fetch('/api/trivia', {
           method:'POST',
           headers:{'content-type':'application/json'},
-          body: JSON.stringify(body)
+          body: JSON.stringify({ category, difficulty, recent, seed })
         });
+        const data = await res.json();
 
-        if (res.status === 401) {
-          const data = await res.json().catch(()=>({}));
-          if (data?.error === "needs_token" && !withToken) {
-            return doFetch(true);
-          }
-        }
-
-        if (!res.ok) {
-          const data = await res.json().catch(()=>({}));
-          throw new Error(data?.error || `HTTP ${res.status}`);
-        }
-
-        return res.json();
-      }
-
-      try {
-        const data = await doFetch(false);
-
-        if (seen.slice(-75).includes((data.question||'').trim()) && retry < 4) {
+        if (recent.includes((data.question||'').trim()) && retry < 4) {
           return getQuestion(retry+1);
         }
 
@@ -311,7 +244,6 @@
         remember(data.question);
         ok = true;
       } catch (e){
-        showLoader(false);
         qText.textContent = "We couldn't fetch a question. Try again.";
         console.error(e);
       } finally {
@@ -321,6 +253,7 @@
 
     function onAnswer(e){
       if (locked) return;
+      locked = true;
       const i = +e.currentTarget.getAttribute('data-i');
       const correct = current.correct_index;
       const btns = [...document.querySelectorAll('.choice')];
