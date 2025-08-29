@@ -6,6 +6,7 @@ export const onRequestPost = async (context) => {
   let difficulty = "medium";
   let recent = [];
   let seed = Math.floor(Math.random() * 1e9);
+  let fetching = false; // prevents overlapping fetches
 
   try {
     const body = await request.json();
@@ -134,6 +135,22 @@ export const onRequestPost = async (context) => {
   ];
 
   const jsonHeaders = { "content-type": "application/json", "cache-control": "no-store" };
+
+  // ---------- Per-client short lock to avoid overlapping requests ----------
+  // Prevents rapid double-clicks from the same client producing parallel generations.
+  if (!globalThis.__REQ_LOCKS) globalThis.__REQ_LOCKS = new Map();
+  const ip = request.headers.get("cf-connecting-ip") || "anon";
+  const lockKey = `${ip}:${category}:${difficulty}`;
+  const now = Date.now();
+  const until = globalThis.__REQ_LOCKS.get(lockKey) || 0;
+  if (now < until) {
+    return new Response(
+      JSON.stringify({ error: "too_many_requests", retry_after_ms: until - now }),
+      { headers: jsonHeaders, status: 429 }
+    );
+  }
+  // Set a short lock window (2.5s) — expires automatically
+  globalThis.__REQ_LOCKS.set(lockKey, now + 2500);
 
   // ---------- Fallback questions pool ----------
   const fallbacks = [
