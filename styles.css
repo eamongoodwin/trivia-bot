@@ -1,4 +1,4 @@
-/* QuizGrid — NYT‑ish clean aesthetic */
+/* Trivia Bot — clean aesthetic */
 :root{
   --paper:#f9f7f1;
   --ink:#111;
@@ -140,3 +140,37 @@ body{
 @media (max-width:800px){
   .status-row{ grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------------------------
+   Manual dark-mode overrides
+   --------------------------- */
+
+/* Vars: same as your @media block */
+:root[data-theme="dark"]{
+  --paper:#0b1220;
+  --ink:#e9eef5;
+  --muted:#a0b3c7;
+  --accent:#eaeaea;
+  --accent-2:#c7c7c7;
+  --ring:#22d3ee;
+  --shadow:0 16px 40px rgba(0,0,0,.35);
+}
+
+/* Component overrides to match your @media rules */
+[data-theme="dark"] .site-header{ background:rgba(11,18,32,.7); border-bottom:1px solid rgba(255,255,255,.08); }
+[data-theme="dark"] .ghost{ border-color: rgba(255,255,255,.18); }
+[data-theme="dark"] .primary{ background:#eaeaea; color:#111; }
+
+[data-theme="dark"] .card{
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  border:1px solid rgba(255,255,255,.08);
+}
+
+[data-theme="dark"] .chip{ background:#0d1b2a; border-color:rgba(255,255,255,.16); color:#e9eef5; }
+[data-theme="dark"] .chip.active{ background:#eaeaea; color:#111; border-color:#eaeaea; }
+
+[data-theme="dark"] .stat{ background:#0d1b2a; border:1px solid rgba(255,255,255,.12); color:#e9eef5; }
+
+[data-theme="dark"] .choice{ background:#0d1b2a; border-color: rgba(255,255,255,.12); color:#e9eef5; }
+
+[data-theme="dark"] .site-footer{ border-top:1px solid rgba(255,255,255,.08); }
