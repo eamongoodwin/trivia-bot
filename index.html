@@ -13,6 +13,8 @@
   <link rel="apple-touch-icon" href="favicon_triviabot.webp">
 
   <link rel="icon" href="/favicon.ico" />
+  
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
   <script>
     (function () {
@@ -93,6 +95,13 @@
     <section class="tips">
       <p class="muted">Pro tip: Use button <kbd>1</kbd>-><kbd>4</kbd> to answer quickly. Your best score is saved on this device.</p>
     </section>
+      <!-- Invisible Turnstile widget -->
+    <div id="ts-widget"
+         class="cf-turnstile"
+         data-sitekey="0x4AAAAAABv9ADJDS5ltuPkd"
+         data-size="invisible">
+    </div>
+
   </main>
 
   <footer class="site-footer">
@@ -253,7 +262,6 @@
 
     function onAnswer(e){
       if (locked) return;
-      locked = true;
       const i = +e.currentTarget.getAttribute('data-i');
       const correct = current.correct_index;
       const btns = [...document.querySelectorAll('.choice')];
