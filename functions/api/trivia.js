@@ -5,7 +5,7 @@
 // - Simpler validation + fewer retries
 
 // Use the external fallback bank 
-import STATIC_PREBUILT from '../_shared/fallbackQuestions.js';
+import STATIC_PREBUILT from '../api/_shared/fallbackQuestions.js';
 
 // ===== In-memory HYBRID POOLS (per isolate) =====
 // NOTE: These reset when the isolate is recycled. For persistence across POPs, bind KV/R2 and replace this with real storage.
