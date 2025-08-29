@@ -6,5 +6,5 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-# Absolute URL to your sitemap (update if you add a custom domain)
-Sitemap: https://trivia-bot-3o6.pages.dev/sitemap.xml
+# Absolute URL to your sitemap
+Sitemap: https://trivia-bot.com/sitemap.xml
