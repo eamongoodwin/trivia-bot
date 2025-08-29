@@ -17,7 +17,7 @@ export const onRequestPost = async (context) => {
 
   const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
-  // ---------- JSON schema (adds optional topic_key/headword/mode) ----------
+  // ---------- JSON schema (adds optional topic_key/headword/mode and requires answer_text) ----------
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -28,9 +28,10 @@ export const onRequestPost = async (context) => {
       explanation: { type: "string" },
       topic_key: { type: "string" },          // e.g., "Amazon River", "Pythagoras"
       headword: { type: "string" },           // dictionary only, e.g., "succinct"
-      mode: { type: "string" }                // dictionary: "definition" or "synonym"
+      mode: { type: "string" },               // dictionary: "definition" or "synonym"
+      answer_text: { type: "string" }         // EXACT text of the correct choice
     },
-    required: ["question", "choices", "correct_index"]
+    required: ["question", "choices", "correct_index", "answer_text"]
   };
 
   // ---------- Prompt steering ----------
@@ -68,9 +69,10 @@ export const onRequestPost = async (context) => {
       role: "system",
       content: [
         "You generate concise, unambiguous multiple-choice trivia.",
-        "Return JSON that exactly matches the provided schema.",
+        "Return JSON that exactly matches the schema.",
         "Keep the question <= 140 characters.",
         "Provide four plausible, mutually exclusive choices.",
+        "Avoid vague stems like 'often', 'commonly', 'usually', or 'popular'.",
         "Avoid offensive/adult content."
       ].join(" ")
     },
@@ -83,8 +85,10 @@ export const onRequestPost = async (context) => {
         categoryHint,
         avoidBlock,
         "Create exactly ONE question with four choices and correct_index (0-3).",
-        "Include a one-sentence explanation or fun fact.",
-        "Also include a 'topic_key' that names the main subject (e.g., 'Amazon River', 'Pythagoras', 'photosynthesis').",
+        "Add one-sentence explanation or fun fact.",
+        "Return an 'answer_text' field that EXACTLY equals the correct choice string.",
+        "Ensure the other three choices do not satisfy all facts in the question.",
+        "Also include a 'topic_key' naming the main subject (e.g., 'Amazon River', 'Pythagoras', 'photosynthesis').",
         "For dictionary, also include 'headword' and 'mode'."
       ].join("\n")
     }
@@ -120,8 +124,10 @@ export const onRequestPost = async (context) => {
       .replace(/\s+/g, " ")
       .trim();
 
-  // ---------- Generate with stronger global de-dup ----------
-  const MAX_TRIES = 8; // more chances to avoid repeats
+  const norm = (s) => String(s || "").trim();
+
+  // ---------- Generate with stronger validation + global de-dup ----------
+  const MAX_TRIES = 8; // more chances to avoid repeats / bad keys
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
     let kvHit = false, kvPut = false;
 
@@ -134,13 +140,28 @@ export const onRequestPost = async (context) => {
         seed: seed + attempt * 1337
       });
 
+      // ---- (3) Validate answer_text vs choices/correct_index ----
       const payload = aiRes?.response ?? aiRes;
-      const qText = (payload?.question || "").trim();
-      if (!qText) throw new Error("Empty question");
 
-      // Build a stable "subject" key:
-      // - dictionary: prefer headword
-      // - otherwise: prefer topic_key, else normalized question text
+      const qText = norm(payload?.question);
+      const choices = Array.isArray(payload?.choices) ? payload.choices.map(norm) : [];
+      const answerText = norm(payload?.answer_text);
+      const correctIndex = payload?.correct_index;
+
+      const uniqueCount = new Set(choices.map(c => c.toLowerCase())).size;
+      const idxFromAnswer = choices.findIndex(c => c.toLowerCase() === answerText.toLowerCase());
+
+      if (
+        !qText ||
+        choices.length !== 4 ||
+        uniqueCount !== 4 ||
+        idxFromAnswer === -1 ||
+        idxFromAnswer !== correctIndex
+      ) {
+        throw new Error("Validation failed: answer/choices mismatch or duplicates");
+      }
+
+      // ---- Subject key for de-dup (dictionary uses headword when possible) ----
       let subject =
         category === "dictionary"
           ? (payload.headword || payload.topic_key || qText)
@@ -170,27 +191,30 @@ export const onRequestPost = async (context) => {
         kvPut = true;
       }
 
+      // If valid and not a duplicate, return result
       const out = {
         id: crypto.randomUUID(),
         question: qText,
-        choices: payload.choices,
-        correct_index: payload.correct_index,
-        explanation: payload.explanation || "",
+        choices,
+        correct_index: correctIndex,
+        explanation: norm(payload.explanation),
         _debug: {
+          validated: true,
           attempt, kvHit, kvPut,
           subject: normalizedSubject.slice(0,64),
           mode: payload.mode || null,
           headword: payload.headword || null
         }
       };
-
       return new Response(JSON.stringify(out), { headers: jsonHeaders });
+
     } catch (err) {
       if (attempt === MAX_TRIES - 1) {
         const f = fallback();
         f._debug = { attempt, error: "fallback" };
         return new Response(JSON.stringify(f), { headers: jsonHeaders });
       }
+      // otherwise, loop and try again with a new seed
     }
   }
 
