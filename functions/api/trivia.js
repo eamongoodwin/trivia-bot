@@ -4,8 +4,8 @@
 // - In-memory “hybrid” pool per category for instant first-byte
 // - Simpler validation + fewer retries
 
-// Use the external fallback bank (JSON module)
-import STATIC_PREBUILT from './fallbackQuestions.json' assert { type: 'json' };
+// Use the external fallback bank 
+import STATIC_PREBUILT from '../_shared/fallbackQuestions.js';
 
 // ===== In-memory HYBRID POOLS (per isolate) =====
 // NOTE: These reset when the isolate is recycled. For persistence across POPs, bind KV/R2 and replace this with real storage.
