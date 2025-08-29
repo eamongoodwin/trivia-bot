@@ -15,7 +15,12 @@ export const onRequestPost = async (context) => {
     if (Number.isInteger(body.seed)) seed = body.seed;
   } catch (_) {}
 
-  const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+  const MODEL_MAP = {
+    easy:   "@cf/meta/llama-3.1-8b-instruct-fast",
+    medium: "@cf/meta/llama-3.1-8b-instruct",      // higher quality than -fast
+    hard:   "@cf/meta/llama-3.1-70b-instruct"      // larger model for tough items
+  };
+  const MODEL = MODEL_MAP[difficulty] || MODEL_MAP.medium;
 
   // ---------- JSON schema ----------
   // Require answer_text AND topic_key (the canonical subject == correct answer).
@@ -142,10 +147,11 @@ export const onRequestPost = async (context) => {
     let kvHit = false, kvPut = false;
 
     try {
+      const temp = (difficulty === "hard") ? 0.8 : 0.9;
       const aiRes = await env.AI.run(MODEL, {
         messages,
         response_format: { type: "json_schema", json_schema: schema },
-        temperature: 0.95,
+        temperature: temp,
         top_p: 0.95,
         seed: seed + attempt * 1337
       });
