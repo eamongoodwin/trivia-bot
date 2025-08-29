@@ -17,7 +17,7 @@ export const onRequestPost = async (context) => {
 
   const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
-  // JSON schema
+  // JSON schema yes
   const schema = {
     type: "object",
     additionalProperties: false,
