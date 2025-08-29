@@ -35,60 +35,6 @@ function poolPush(category, difficulty, q) {
   }
 }
 
-// A few static prebuilt items as a last-ditch instant fallback (edit/expand as you like)
-const STATIC_PREBUILT = {
-  "general:easy": [
-    {
-      question: "Which planet is known as the Red Planet?",
-      choices: ["Mars", "Venus", "Jupiter", "Mercury"],
-      correct_index: 0,
-      explanation: "Iron oxide dust on Mars gives it a reddish color.",
-      headword: "Mars",
-      mode: "definition",
-      answer_text: "Mars",
-      topic_key: "space.mars.basics",
-      subject_matter: "astronomy"
-    },
-    {
-      question: "What is the largest mammal on Earth?",
-      choices: ["African elephant", "Blue whale", "Giraffe", "Hippopotamus"],
-      correct_index: 1,
-      explanation: "Blue whales can exceed 150 tons.",
-      headword: "Blue whale",
-      mode: "definition",
-      answer_text: "Blue whale",
-      topic_key: "biology.animals.mammals",
-      subject_matter: "biology"
-    }
-  ],
-  "general:medium": [
-    {
-      question: "HTTP status 404 indicates what condition?",
-      choices: ["Server error", "Unauthorized", "Not found", "Moved permanently"],
-      correct_index: 2,
-      explanation: "404 means the requested resource could not be found.",
-      headword: "404",
-      mode: "definition",
-      answer_text: "Not found",
-      topic_key: "web.http.codes",
-      subject_matter: "computing"
-    }
-  ],
-  "general:hard": [
-    {
-      question: "Which algorithm provides average-case O(n log n) sorting using divide-and-conquer?",
-      choices: ["Bubble sort", "Insertion sort", "Quick sort", "Counting sort"],
-      correct_index: 2,
-      explanation: "Quicksort partitions and recursively sorts subarrays.",
-      headword: "Quicksort",
-      mode: "definition",
-      answer_text: "Quick sort",
-      topic_key: "cs.algorithms.sorting",
-      subject_matter: "computer science"
-    }
-  ]
-};
-
 // ===== Helpers =====
 const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
