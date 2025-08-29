@@ -375,22 +375,32 @@ body{
   75%     { transform: translateX(-2px) }
 }
 
-/* 3) Confetti drizzle over the card when there is a correct choice (uses :has) */
+/* 3) Confetti drizzle over the card when there is a correct choice (fixed) */
+.game{ position: relative; overflow: hidden; }
+
 .game:has(.choice.ok)::after{
   content:"";
-  position:absolute; inset:0; pointer-events:none;
+  position:absolute; inset:0; pointer-events:none; border-radius: inherit;
+  /* five confetti pieces (non-repeating) starting just above the card */
   background:
-    conic-gradient(from 0deg,  #f59e0b 0 25%, transparent 0 100%) 20% -10%/8px 14px,
-    conic-gradient(from 0deg,  #3b82f6 0 25%, transparent 0 100%) 50% -12%/8px 14px,
-    conic-gradient(from 0deg,  #ef4444 0 25%, transparent 0 100%) 80% -8%/8px 14px,
-    conic-gradient(from 0deg,  #10b981 0 25%, transparent 0 100%) 35% -9%/8px 14px,
-    conic-gradient(from 0deg,  #a78bfa 0 25%, transparent 0 100%) 65% -11%/8px 14px;
-  animation: confetti 1s ease-out forwards;
+    conic-gradient(from 0deg,  #f59e0b 0 25%, transparent 0 100%) 20% -12% / 10px 16px no-repeat,
+    conic-gradient(from 0deg,  #3b82f6 0 25%, transparent 0 100%) 48% -14% / 10px 16px no-repeat,
+    conic-gradient(from 0deg,  #ef4444 0 25%, transparent 0 100%) 72% -10% / 10px 16px no-repeat,
+    conic-gradient(from 0deg,  #10b981 0 25%, transparent 0 100%) 35% -13% / 10px 16px no-repeat,
+    conic-gradient(from 0deg,  #a78bfa 0 25%, transparent 0 100%) 62% -11% / 10px 16px no-repeat;
+  animation: confetti-fall 900ms ease-out forwards;
 }
-@keyframes confetti{
+
+@keyframes confetti-fall{
   to{
+    /* move each piece past the bottom */
     background-position:
-      20% 110%, 50% 108%, 80% 112%, 35% 109%, 65% 111%;
+      20% 108%,
+      48% 110%,
+      72% 112%,
+      35% 109%,
+      62% 111%;
+    opacity: 0.95;
   }
 }
 
