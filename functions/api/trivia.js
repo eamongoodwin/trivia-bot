@@ -47,11 +47,10 @@ const edgeStale = 60;     // seconds
 const GEN_TIMEOUT_MS = 1500; // time-box each LLM attempt
 const MAX_TRIES = 3;         // fewer retries than before
 
-// Smaller / faster models
 const MODEL_MAP = {
   easy:   "@cf/meta/llama-3.1-8b-instruct",
-  medium: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-  hard:   "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
+  medium: "@cf/meta/llama-3.1-8b-instruct",
+  hard:   "@cf/meta/llama-3.1-8b-instruct"
 };
 
 function raceWithTimeout(promise, ms = GEN_TIMEOUT_MS) {
