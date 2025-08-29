@@ -213,6 +213,41 @@
       qWrap.hidden = show;
     }
 
+    // --- Turnstile helpers for a VISIBLE widget (implicit rendering) ---
+    async function waitForTurnstileReady() {
+      // Wait for the API and the widget element to exist
+      const sel = '#ts-widget';
+      const start = Date.now();
+      while (
+        (!window.turnstile || !document.querySelector(sel)) &&
+        Date.now() - start < 6000
+      ) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return !!(window.turnstile && document.querySelector(sel));
+    }
+
+    async function getTurnstileToken() {
+      const ok = await waitForTurnstileReady();
+      if (!ok) return "";
+
+      const sel = '#ts-widget';
+
+      // Force a fresh token (tokens are single-use + expire)
+      try { turnstile.reset(sel); } catch (_) {}
+
+      // Poll until the widget issues a token (or timeout)
+      let token = "";
+      const start = Date.now();
+      while (!token && Date.now() - start < 7000) {
+        try { token = turnstile.getResponse(sel) || ""; } catch (_) {}
+        if (token) break;
+        await new Promise(r => setTimeout(r, 80));
+      }
+      return token;
+    }
+
+    // --- Replace your existing getQuestion with this version ---
     async function getQuestion(retry=0){
       nextBtn.disabled = true;
       explainEl.hidden = true;
@@ -224,15 +259,29 @@
 
       let ok = false;
       try {
+        // NEW: fetch a Turnstile token from the visible widget
+        const token = await getTurnstileToken();
+        if (!token) throw new Error("Turnstile did not return a token");
+
         const recent = seen.slice(-75);
         const seed = Math.floor(Math.random()*1e9);
+
         const res = await fetch('/api/trivia', {
           method:'POST',
           headers:{'content-type':'application/json'},
-          body: JSON.stringify({ category, difficulty, recent, seed })
+          body: JSON.stringify({
+            category, difficulty, recent, seed,
+            turnstile_token: token         // <-- NEW
+          })
         });
-        const data = await res.json();
 
+        const data = await res.json();
+        if (!res.ok) {
+          // Surface the server-side error (403/400 etc.)
+          throw new Error(data?.error || "Verification failed");
+        }
+
+        // De-dupe retry
         if (recent.includes((data.question||'').trim()) && retry < 4) {
           return getQuestion(retry+1);
         }
@@ -256,6 +305,7 @@
         remember(data.question);
         ok = true;
       } catch (e){
+        showLoader(false);
         qText.textContent = "We couldn't fetch a question. Try again.";
         console.error(e);
       } finally {
