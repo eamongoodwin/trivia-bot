@@ -1,3 +1,5 @@
+import STATIC_PREBUILT from './fallbackQuestions.json';
+
 // trivia.js — Fast, hybrid + cached Trivia API for Cloudflare Pages Functions / Workers
 // - Time-boxed LLM calls with instant fallback
 // - Edge cache by (category,difficulty)
