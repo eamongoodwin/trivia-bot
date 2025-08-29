@@ -246,3 +246,18 @@ body{
 [data-theme="light"] .site-footer{ border-top:1px solid rgba(0,0,0,.08); }
 
 
+/* Navbar logo: gently rounded corners */
+.brand img{
+  display:block;                 /* removes stray inline gaps */
+  border-radius:8px;             /* tweak to 6–10px to taste */
+  border:1px solid rgba(0,0,0,.12);
+}
+
+/* Dark theme border color */
+@media (prefers-color-scheme: dark){
+  .brand img{ border-color: rgba(255,255,255,.18); }
+}
+
+/* Manual theme overrides */
+[data-theme="dark"] .brand img{ border-color: rgba(255,255,255,.18); }
+[data-theme="light"] .brand img{ border-color: rgba(0,0,0,.12); }
