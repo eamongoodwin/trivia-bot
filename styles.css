@@ -199,3 +199,50 @@ body{
 /* Optional: make tiny pills a bit bolder */
 .ghost.small{ font-weight:600; }
 
+/* Force LIGHT theme when OS is dark */
+:root[data-theme="light"]{
+  --paper:#f9f7f1;
+  --ink:#111;
+  --muted:#5b616e;
+  --accent:#121212;
+  --accent-2:#2b2b2b;
+  --ring:#1a1a1a;
+  --shadow:0 12px 30px rgba(0,0,0,.08);
+}
+
+/* Mirror all dark-mode component rules with light equivalents */
+[data-theme="light"] .site-header{
+  background:rgba(255,255,255,.8);
+  border-bottom:1px solid rgba(0,0,0,.08);
+}
+[data-theme="light"] .ghost{
+  background:transparent;
+  color:#111;
+  border-color:rgba(0,0,0,.15);
+}
+[data-theme="light"] .ghost:hover{ background:rgba(0,0,0,.06); }
+[data-theme="light"] .primary{ background:#111; color:#fff; }
+
+[data-theme="light"] .card{
+  background:linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.35));
+  border:1px solid rgba(0,0,0,.08);
+}
+
+[data-theme="light"] .chip{
+  background:#fff; color:#111; border-color:rgba(0,0,0,.15);
+}
+[data-theme="light"] .chip.active{
+  background:#111; color:#fff; border-color:#111;
+}
+
+[data-theme="light"] .stat{
+  background:#fff; color:#111; border:1px solid rgba(0,0,0,.08);
+}
+
+[data-theme="light"] .choice{
+  background:#fff; color:#111; border-color:rgba(0,0,0,.12);
+}
+
+[data-theme="light"] .site-footer{ border-top:1px solid rgba(0,0,0,.08); }
+
+
