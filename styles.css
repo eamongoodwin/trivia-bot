@@ -261,3 +261,39 @@ body{
 /* Manual theme overrides */
 [data-theme="dark"] .brand img{ border-color: rgba(255,255,255,.18); }
 [data-theme="light"] .brand img{ border-color: rgba(0,0,0,.12); }
+
+/* Ensure correct/incorrect feedback shows in all themes */
+.choice.ok{
+  background: rgba(14,122,58,.14);
+  border-color: rgba(14,122,58,.45);
+}
+.choice.bad{
+  background: rgba(176,0,32,.14);
+  border-color: rgba(176,0,32,.45);
+}
+
+/* Dark scheme: override the more specific [data-theme="dark"] .choice */
+@media (prefers-color-scheme: dark){
+  .choice.ok{
+    background: rgba(14,122,58,.22);
+    border-color: rgba(14,122,58,.55);
+  }
+  .choice.bad{
+    background: rgba(176,0,32,.22);
+    border-color: rgba(176,0,32,.55);
+  }
+}
+[data-theme="dark"] .choice.ok{
+  background: rgba(14,122,58,.22);
+  border-color: rgba(14,122,58,.55);
+}
+[data-theme="dark"] .choice.bad{
+  background: rgba(176,0,32,.22);
+  border-color: rgba(176,0,32,.55);
+}
+
+/* Remove hover outline once answered */
+.choice.ok:hover,
+.choice.bad:hover,
+.choice:disabled:hover { outline: none; }
+.choice:disabled{ cursor: default; }
