@@ -215,7 +215,6 @@
 
     // --- Turnstile helpers for a VISIBLE widget (implicit rendering) ---
     async function waitForTurnstileReady() {
-      // Wait for the API and the widget element to exist
       const sel = '#ts-widget';
       const start = Date.now();
       while (
@@ -230,13 +229,8 @@
     async function getTurnstileToken() {
       const ok = await waitForTurnstileReady();
       if (!ok) return "";
-
       const sel = '#ts-widget';
-
-      // Force a fresh token (tokens are single-use + expire)
       try { turnstile.reset(sel); } catch (_) {}
-
-      // Poll until the widget issues a token (or timeout)
       let token = "";
       const start = Date.now();
       while (!token && Date.now() - start < 7000) {
@@ -247,12 +241,7 @@
       return token;
     }
 
-    <!-- REPLACED getQuestion with session-gating retry version -->
-  })();
-  </script>
-
-  <!-- New getQuestion (session gate + retry for token only when needed) -->
-  <script>
+    // --- Session-gated getQuestion (tries without token first; only fetches token if needed) ---
     async function getQuestion(retry=0){
       nextBtn.disabled = true;
       explainEl.hidden = true;
@@ -281,7 +270,6 @@
           body: JSON.stringify(body)
         });
 
-        // If server asks for a token, fetch it and retry once.
         if (res.status === 401) {
           const data = await res.json().catch(()=>({}));
           if (data?.error === "needs_token" && !withToken) {
@@ -330,6 +318,40 @@
         if (!ok) showLoader(false);
       }
     }
+
+    function onAnswer(e){
+      if (locked) return;
+      const i = +e.currentTarget.getAttribute('data-i');
+      const correct = current.correct_index;
+      const btns = [...document.querySelectorAll('.choice')];
+      btns.forEach((b,idx)=>{
+        if (idx===correct) b.classList.add('ok');
+        if (idx===i && i!==correct) b.classList.add('bad');
+        b.disabled = true;
+      });
+      if (i===correct){ score++; streak++; }
+      else { streak=0; }
+      scoreEl.textContent=score; streakEl.textContent=streak;
+      explainEl.textContent = current.explanation || '';
+      explainEl.hidden = !current.explanation;
+      nextBtn.disabled = false;
+      persist();
+    }
+
+    nextBtn.addEventListener('click', () => getQuestion());
+    newQBtn.addEventListener('click', () => getQuestion());
+    window.addEventListener('keydown', (e)=>{
+      if (e.key>='1' && e.key<='4'){
+        const idx = (+e.key)-1;
+        const btn = document.querySelector(`.choice[data-i="${idx}"]`);
+        if (btn) btn.click();
+      } else if (e.key==='Enter' && !nextBtn.disabled){
+        nextBtn.click();
+      }
+    });
+
+    getQuestion();
+  })();
   </script>
 
   <script>
