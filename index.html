@@ -54,9 +54,9 @@
     </section>
 
     <section id="game" class="card game">
-      <div id="loader" class="loader" hidden>
+      <div id="loader" class="loader" hidden aria-hidden="true" aria-busy="false">
         <div class="dots"><span></span><span></span><span></span></div>
-        <div class="loader-text">Thinking</div>
+        <div class="loader-text">THINKING</div>
       </div>
 
       <div id="qWrap" hidden>
@@ -178,6 +178,8 @@
 
   function showLoader(show){
     loader.hidden = !show;
+    loader.setAttribute('aria-hidden', show ? 'false' : 'true');
+    loader.setAttribute('aria-busy', show ? 'true' : 'false');
     qWrap.hidden = show;
   }
 
@@ -190,6 +192,7 @@
     showLoader(true);
     locked=false;
 
+    let ok = false;
     try {
       const recent = seen.slice(-75);
       const seed = Math.floor(Math.random()*1e9);
@@ -206,6 +209,10 @@
       }
 
       current = data;
+
+      // HIDE the loader immediately before painting the question
+      showLoader(false);
+
       qText.textContent = data.question;
       data.choices.forEach((t,i)=>{
         const li = document.createElement('li');
@@ -219,12 +226,13 @@
       });
 
       remember(data.question);
+      ok = true;
     } catch (e){
       qText.textContent = "We couldn't fetch a question. Try again.";
       console.error(e);
     } finally {
-      showLoader(false);
-      qWrap.hidden = false;
+      // Ensure loader is hidden even on error so the message shows
+      if (!ok) showLoader(false);
     }
   }
 
