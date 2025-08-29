@@ -1,7 +1,7 @@
 export const onRequestPost = async (context) => {
   const { request, env } = context;
 
-  // Read input
+  // ---- Read input ----
   let category = "general";
   let recent = [];
   let seed = Math.floor(Math.random() * 1e9);
@@ -17,7 +17,7 @@ export const onRequestPost = async (context) => {
 
   const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
-  // JSON schema yes
+  // ---- JSON schema ----
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -30,27 +30,46 @@ export const onRequestPost = async (context) => {
     required: ["question", "choices", "correct_index"]
   };
 
+  // ---- Prompt steering ----
   const difficultyHint = (() => {
     switch (difficulty) {
-      case "easy":
-        return "Make it beginner-friendly and widely known; avoid niche facts.";
-      case "hard":
-        return "Increase difficulty moderately (no obscurities), require careful thought.";
-      default:
-        return "Keep difficulty balanced for a general audience.";
+      case "easy":   return "Keep it beginner-friendly and widely known.";
+      case "hard":   return "Increase difficulty moderately; no obscurities or trick wording.";
+      default:       return "Keep difficulty balanced for a general audience.";
     }
   })();
 
+  // Stronger guidance for dictionary
+  const dictionaryRules = [
+    "Pick a real English headword (CEFR A2–C1).",
+    "Ask EITHER for the best definition OR the closest synonym.",
+    "Choices must be words or short definitions, mutually exclusive.",
+    "Avoid generic knowledge questions; this is about vocabulary only.",
+  ].join(" ");
+
   const avoidBlock = recent.length
-    ? "Avoid repeating any of these exact questions:\n- " + recent.map(q => (q||"").toString().trim()).filter(Boolean).join("\n- ")
-    : "Ensure the question varies subtopics and is not overused.";
+    ? "Avoid repeating any of these exact questions:\n- " +
+      recent.map(q => (q||"").toString().trim()).filter(Boolean).join("\n- ")
+    : "Vary subtopics and avoid overused or generic questions.";
+
+  const categoryHint = (() => {
+    switch (category) {
+      case "dictionary": return dictionaryRules;
+      case "science_nature": return "Prefer high-school level science; no trick questions.";
+      case "entertainment": return "Use film, TV, music, books, or games; avoid spoilers.";
+      case "food_drink": return "Use cuisines, ingredients, techniques, or beverages.";
+      case "geography": return "Use countries, capitals, landmarks, or physical geography.";
+      case "history": return "Prefer well-known events, eras, or figures.";
+      default: return "General knowledge suitable for a broad audience.";
+    }
+  })();
 
   const messages = [
     {
       role: "system",
       content: [
         "You generate concise, unambiguous multiple-choice trivia questions.",
-        "Return JSON that matches the provided schema exactly.",
+        "Return JSON conforming to the schema exactly.",
         "Keep the question <= 140 characters.",
         "Choices must be plausible and mutually exclusive.",
         "Avoid offensive/adult topics."
@@ -60,29 +79,25 @@ export const onRequestPost = async (context) => {
       role: "user",
       content: [
         `Category: ${category}`,
+        `Difficulty: ${difficulty}`,
         difficultyHint,
+        categoryHint,
         avoidBlock,
         "Create exactly one question with four choices and correct_index (0-3).",
-        "For 'dictionary', ask for a real English word definition or synonym (A1–C1).",
-        "For 'science_nature', prefer HS-level science (no trick wording).",
-        "For 'entertainment', include film/TV/music/books/games; avoid spoilers.",
-        "For 'food_drink', use cuisines, ingredients, techniques, or beverages.",
-        "For 'geography', use countries, capitals, landmarks, or physical geography.",
-        "For 'history', prefer well-known events/figures.",
-        "Add a one-sentence explanation or fun fact."
+        "Add one-sentence explanation or fun fact."
       ].join("\n")
     }
   ];
 
   const jsonHeaders = { "content-type": "application/json", "cache-control": "no-store" };
 
-  // Local fallback
+  // ---- Local fallback ----
   const fallback = () => ({
     id: crypto.randomUUID(),
-    question: "What is the capital of Japan?",
-    choices: ["Kyoto", "Osaka", "Tokyo", "Nagoya"],
-    correct_index: 2,
-    explanation: "Tokyo has been Japan’s capital since 1868 (Meiji Restoration).",
+    question: "Which planet is known as the Red Planet?",
+    choices: ["Venus", "Mars", "Jupiter", "Mercury"],
+    correct_index: 1,
+    explanation: "Mars looks red due to iron oxide on its surface.",
     source: "fallback"
   });
 
@@ -90,40 +105,43 @@ export const onRequestPost = async (context) => {
     return new Response(JSON.stringify(fallback()), { headers: jsonHeaders });
   }
 
-  // Simple SHA-256 helper
+  // ---- Helpers ----
   const sha256 = async (text) => {
     const enc = new TextEncoder().encode(text);
     const buf = await crypto.subtle.digest("SHA-256", enc);
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
   };
 
-  // Generate with a few retries if KV says we've seen it recently
-  const MAX_TRIES = 3;
+  // ---- Generate with global de-dup via KV ----
+  const MAX_TRIES = 5;
   for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+    let kvHit = false, kvPut = false, kvKey = undefined;
+
     try {
       const aiRes = await env.AI.run(MODEL, {
         messages,
         response_format: { type: "json_schema", json_schema: schema },
-        temperature: 0.8,
+        // nudge diversity
+        temperature: 0.9,
         top_p: 0.9,
-        seed: seed + attempt // nudge variation
+        seed: seed + attempt
       });
 
       const payload = aiRes?.response ?? aiRes;
       const qText = (payload?.question || "").trim();
       if (!qText) throw new Error("Empty question");
 
-      // GLOBAL DE-DUP with KV
+      // Global de-dup: hash on normalized question text
       const h = await sha256(qText.toLowerCase());
-      const k = `q:${h}`;
-      const seen = env.TRIVIA_KV ? await env.TRIVIA_KV.get(k) : null;
+      kvKey = `q:${category}:${h}`;
+      const seen = env.TRIVIA_KV ? await env.TRIVIA_KV.get(kvKey) : null;
 
       if (seen) {
-        // Try again with a different seed
-        if (attempt < MAX_TRIES - 1) continue;
+        kvHit = true;
+        if (attempt < MAX_TRIES - 1) continue; // try again with new seed
       } else if (env.TRIVIA_KV) {
-        // Store for 7 days
-        await env.TRIVIA_KV.put(k, "1", { expirationTtl: 60 * 60 * 24 * 7 });
+        await env.TRIVIA_KV.put(kvKey, "1", { expirationTtl: 60 * 60 * 24 * 7 }); // 7 days
+        kvPut = true;
       }
 
       const out = {
@@ -131,18 +149,22 @@ export const onRequestPost = async (context) => {
         question: qText,
         choices: payload.choices,
         correct_index: payload.correct_index,
-        explanation: payload.explanation || ""
+        explanation: payload.explanation || "",
+        _debug: { attempt, kvHit, kvPut } // lightweight debug to verify KV
       };
 
       return new Response(JSON.stringify(out), { headers: jsonHeaders });
     } catch (err) {
-      // On error, fall through to next attempt
       if (attempt === MAX_TRIES - 1) {
-        return new Response(JSON.stringify(fallback()), { headers: jsonHeaders });
+        const f = fallback();
+        f._debug = { attempt, kvHit: false, kvPut: false, error: "fallback" };
+        return new Response(JSON.stringify(f), { headers: jsonHeaders });
       }
     }
   }
 
   // Safety net
-  return new Response(JSON.stringify(fallback()), { headers: jsonHeaders });
+  const f = fallback();
+  f._debug = { attempt: MAX_TRIES, error: "exhausted" };
+  return new Response(JSON.stringify(f), { headers: jsonHeaders });
 };
