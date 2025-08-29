@@ -16,6 +16,16 @@
   <!-- Optional fallback .ico -->
   <link rel="icon" href="/favicon.ico" />
 
+  <!-- Early theme boot (prevents flash) -->
+  <script>
+    (function () {
+      const saved = localStorage.getItem('theme'); // "light" | "dark" | null
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
   <!-- CSS -->
   <link rel="stylesheet" href="styles.css" fetchpriority="high">
 </head>
@@ -29,6 +39,11 @@
       </a>
       <nav class="nav">
         <button class="ghost small" id="reset">Reset</button>
+        <!-- Theme toggle button -->
+        <button id="themeToggle" class="ghost small" aria-pressed="false" title="Toggle theme">
+          <span id="themeIcon" aria-hidden="true">☀︎</span>
+          <span id="themeText">Light</span>
+        </button>
       </nav>
     </div>
   </header>
@@ -277,6 +292,32 @@
     // Initial
     getQuestion();
   })();
+  </script>
+
+  <!-- Theme toggle logic -->
+  <script>
+    (function () {
+      const root = document.documentElement;
+      const btn  = document.getElementById('themeToggle');
+      const icon = document.getElementById('themeIcon');
+      const text = document.getElementById('themeText');
+
+      function apply(theme){
+        root.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        const isDark = theme === 'dark';
+        btn.setAttribute('aria-pressed', isDark);
+        icon.textContent = isDark ? '☾' : '☀︎';
+        text.textContent = isDark ? 'Dark' : 'Light';
+      }
+
+      // Initialize from attribute set in the head script
+      apply(root.getAttribute('data-theme') || 'light');
+
+      btn.addEventListener('click', () => {
+        apply(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+      });
+    })();
   </script>
 </body>
 </html>
