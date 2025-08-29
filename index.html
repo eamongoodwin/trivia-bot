@@ -247,7 +247,12 @@
       return token;
     }
 
-    // --- Replace your existing getQuestion with this version ---
+    <!-- REPLACED getQuestion with session-gating retry version -->
+  })();
+  </script>
+
+  <!-- New getQuestion (session gate + retry for token only when needed) -->
+  <script>
     async function getQuestion(retry=0){
       nextBtn.disabled = true;
       explainEl.hidden = true;
@@ -258,31 +263,44 @@
       locked=false;
 
       let ok = false;
-      try {
-        // NEW: fetch a Turnstile token from the visible widget
-        const token = await getTurnstileToken();
-        if (!token) throw new Error("Turnstile did not return a token");
 
+      async function doFetch(withToken=false){
         const recent = seen.slice(-75);
         const seed = Math.floor(Math.random()*1e9);
+        let body = { category, difficulty, recent, seed };
+
+        if (withToken) {
+          const token = await getTurnstileToken();
+          if (!token) throw new Error("Turnstile did not return a token");
+          body.turnstile_token = token;
+        }
 
         const res = await fetch('/api/trivia', {
           method:'POST',
           headers:{'content-type':'application/json'},
-          body: JSON.stringify({
-            category, difficulty, recent, seed,
-            turnstile_token: token         // <-- NEW
-          })
+          body: JSON.stringify(body)
         });
 
-        const data = await res.json();
-        if (!res.ok) {
-          // Surface the server-side error (403/400 etc.)
-          throw new Error(data?.error || "Verification failed");
+        // If server asks for a token, fetch it and retry once.
+        if (res.status === 401) {
+          const data = await res.json().catch(()=>({}));
+          if (data?.error === "needs_token" && !withToken) {
+            return doFetch(true);
+          }
         }
 
-        // De-dupe retry
-        if (recent.includes((data.question||'').trim()) && retry < 4) {
+        if (!res.ok) {
+          const data = await res.json().catch(()=>({}));
+          throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+
+        return res.json();
+      }
+
+      try {
+        const data = await doFetch(false);
+
+        if (seen.slice(-75).includes((data.question||'').trim()) && retry < 4) {
           return getQuestion(retry+1);
         }
 
@@ -312,40 +330,6 @@
         if (!ok) showLoader(false);
       }
     }
-
-    function onAnswer(e){
-      if (locked) return;
-      const i = +e.currentTarget.getAttribute('data-i');
-      const correct = current.correct_index;
-      const btns = [...document.querySelectorAll('.choice')];
-      btns.forEach((b,idx)=>{
-        if (idx===correct) b.classList.add('ok');
-        if (idx===i && i!==correct) b.classList.add('bad');
-        b.disabled = true;
-      });
-      if (i===correct){ score++; streak++; }
-      else { streak=0; }
-      scoreEl.textContent=score; streakEl.textContent=streak;
-      explainEl.textContent = current.explanation || '';
-      explainEl.hidden = !current.explanation;
-      nextBtn.disabled = false;
-      persist();
-    }
-
-    nextBtn.addEventListener('click', () => getQuestion());
-    newQBtn.addEventListener('click', () => getQuestion());
-    window.addEventListener('keydown', (e)=>{
-      if (e.key>='1' && e.key<='4'){
-        const idx = (+e.key)-1;
-        const btn = document.querySelector(`.choice[data-i="${idx}"]`);
-        if (btn) btn.click();
-      } else if (e.key==='Enter' && !nextBtn.disabled){
-        nextBtn.click();
-      }
-    });
-
-    getQuestion();
-  })();
   </script>
 
   <script>
