@@ -7,6 +7,7 @@ export const onRequestPost = async (context) => {
   let recent = [];
   let seed = Math.floor(Math.random() * 1e9);
   let fetching = false; // prevents overlapping fetches
+  let turnstileToken = "";
 
   try {
     const body = await request.json();
@@ -14,7 +15,51 @@ export const onRequestPost = async (context) => {
     if (typeof body.difficulty === "string") difficulty = body.difficulty;
     if (Array.isArray(body.recent)) recent = body.recent.slice(-100); // Increased from 50 to 100
     if (Number.isInteger(body.seed)) seed = body.seed;
+    if (typeof body.turnstile_token === "string") turnstileToken = body.turnstile_token; // NEW
   } catch (_) {}
+
+  // ---------- Turnstile verification (server-side) ----------
+  // Early JSON headers for preliminary responses
+  const earlyJsonHeaders = { "content-type": "application/json", "cache-control": "no-store" };
+  const remoteIp = request.headers.get("cf-connecting-ip") || "";
+
+  // Require token and secret to proceed
+  if (!turnstileToken) {
+    return new Response(JSON.stringify({ error: "missing_turnstile_token" }), {
+      status: 400,
+      headers: earlyJsonHeaders
+    });
+  }
+
+  if (!env.TURNSTILE_SECRET) {
+    return new Response(JSON.stringify({ error: "server_misconfig_missing_turnstile_secret" }), {
+      status: 500,
+      headers: earlyJsonHeaders
+    });
+  }
+
+  try {
+    const verifyRes = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      body: new URLSearchParams({
+        secret: env.TURNSTILE_SECRET,
+        response: turnstileToken,
+        remoteip: remoteIp
+      })
+    });
+    const verify = await verifyRes.json();
+    if (!verify.success) {
+      return new Response(JSON.stringify({ error: "turnstile_failed", details: verify }), {
+        status: 403,
+        headers: earlyJsonHeaders
+      });
+    }
+  } catch (e) {
+    return new Response(JSON.stringify({ error: "turnstile_verify_error", message: String(e) }), {
+      status: 502,
+      headers: earlyJsonHeaders
+    });
+  }
 
   // ---------- Model & sampling tuned for accuracy ----------
   const MODEL_MAP = {
