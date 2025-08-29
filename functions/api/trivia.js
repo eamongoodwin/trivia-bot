@@ -18,18 +18,18 @@ export const onRequestPost = async (context) => {
 
   // ---------- Model & sampling tuned for accuracy ----------
   const MODEL_MAP = {
-    easy:   "@cf/meta/llama-3.1-8b-instruct",       // Better accuracy than fast version
+    easy:   "@cf/meta/llama-3.1-8b-instruct",
     medium: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-    hard:   "@cf/meta/llama-3.1-70b-instruct"       // Keep 70b for consistency
+    hard:   "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
   };
   const MODEL = MODEL_MAP[difficulty] || MODEL_MAP.medium;
 
   // Reduced temperature for more consistent, accurate responses
-  const TEMP  = (difficulty === "hard") ? 0.70 : 0.75;
-  const TOP_P = (difficulty === "hard") ? 0.85 : 0.88;
+  const TEMP  = (difficulty === "hard") ? 0.60 : 0.65;
+  const TOP_P = (difficulty === "hard") ? 0.88 : 0.9;
 
   // More retries for better deduplication
-  const MAX_TRIES = 8;
+  const MAX_TRIES = 3;
 
   // ---------- JSON schema with stricter validation ----------
   const schema = {
