@@ -1,10 +1,12 @@
-// trivia.js — Fast, hybrid + cached Trivia API for Cloudflare Pages Functions / Workers
+// functions/api/trivia.js
+// Fast, hybrid + cached Trivia API for Cloudflare Pages Functions / Workers
 // - Time-boxed LLM calls with instant fallback
 // - Edge cache by (category,difficulty)
 // - In-memory “hybrid” pool per category for instant first-byte
 // - Simpler validation + fewer retries
+// - Debug headers + forceGen flag to bypass fallbacks and test generation
 
-// Use the external fallback bank 
+// Use the external fallback bank (JS module placed at functions/api/_shared/fallbackQuestions.js)
 import STATIC_PREBUILT from './_shared/fallbackQuestions.js';
 
 // ===== In-memory HYBRID POOLS (per isolate) =====
@@ -15,18 +17,15 @@ const HYBRID_POOLS = new Map(); // key: `${category}:${difficulty}` -> Array<que
 function poolKey(category, difficulty) {
   return `${category}:${difficulty}`;
 }
-
 function getPool(category, difficulty) {
   const key = poolKey(category, difficulty);
   if (!HYBRID_POOLS.has(key)) HYBRID_POOLS.set(key, []);
   return HYBRID_POOLS.get(key);
 }
-
 function poolPop(category, difficulty) {
   const pool = getPool(category, difficulty);
   return pool.length ? pool.shift() : null;
 }
-
 function poolPush(category, difficulty, q) {
   const pool = getPool(category, difficulty);
   // very light duplicate guard by question text
@@ -39,7 +38,7 @@ function poolPush(category, difficulty, q) {
 // ===== Helpers =====
 const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store" // final cache-control is set on the Response we return
+  "cache-control": "no-store"
 };
 
 const edgeCacheTTL = 120; // seconds
@@ -47,6 +46,9 @@ const edgeStale = 60;     // seconds
 const GEN_TIMEOUT_MS = 1500; // time-box each LLM attempt
 const MAX_TRIES = 3;         // fewer retries than before
 
+// ===== Models =====
+// For debugging, run everything on a known-fast model.
+// Once working, you can switch medium/hard back to larger models if desired.
 const MODEL_MAP = {
   easy:   "@cf/meta/llama-3.1-8b-instruct",
   medium: "@cf/meta/llama-3.1-8b-instruct",
@@ -73,24 +75,20 @@ function pickStatic(category, difficulty) {
   return structuredClone(q);
 }
 
-// Fisher–Yates shuffle (to randomize answer positions reliably)
+// Fisher–Yates shuffle
 function shuffleInPlace(a, rng = Math.random) {
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
 }
-
 function finalizeChoices(questionObj, seed) {
-  // re-index correct answer after shuffle for extra randomness client can't predict
   const rng = mulberry32(typeof seed === "number" ? seed : Math.floor(Math.random() * 1e9));
   const originalCorrect = questionObj.choices[questionObj.correct_index];
   shuffleInPlace(questionObj.choices, rng);
   questionObj.correct_index = questionObj.choices.findIndex(x => x === originalCorrect);
   return questionObj;
 }
-
-// small deterministic RNG for shuffle based on seed
 function mulberry32(a) {
   return function() {
     let t = (a += 0x6d2b79f5);
@@ -133,11 +131,18 @@ function collidesWithRecent(q, recent = []) {
 function makeEdgeCacheKey(category, difficulty) {
   return new Request(`https://trivia.local/q?c=${encodeURIComponent(category)}&d=${encodeURIComponent(difficulty)}`);
 }
-
 function buildResponse(payload) {
-  const res = new Response(JSON.stringify(payload), { headers: jsonHeaders });
-  // NOTE: we set cache headers on the cloned response we return from the handler instead
-  return res;
+  return new Response(JSON.stringify(payload), { headers: jsonHeaders });
+}
+
+// ===== Debug headers & state =====
+let LAST_GEN_ERROR = ""; // last generation error string for quick surface via headers
+function withDebugHeaders(resp, srcLabel) {
+  try {
+    resp.headers.set("X-Trivia-Source", srcLabel);
+    if (LAST_GEN_ERROR) resp.headers.set("X-Trivia-Last-Gen-Error", LAST_GEN_ERROR);
+  } catch (_) {}
+  return resp;
 }
 
 // ===== Main handler =====
@@ -149,6 +154,7 @@ export const onRequestPost = async (context) => {
   let difficulty = "medium";
   let recent = [];
   let seed = Math.floor(Math.random() * 1e9);
+  let forceGen = false;
 
   try {
     const body = await request.json();
@@ -156,54 +162,51 @@ export const onRequestPost = async (context) => {
     if (typeof body.difficulty === "string") difficulty = body.difficulty;
     if (Array.isArray(body.recent)) recent = body.recent.slice(-75);
     if (Number.isInteger(body.seed)) seed = body.seed;
+    if (body && body.forceGen === true) forceGen = true;
   } catch (_) {
     // no body is fine
   }
 
-  // ---------- Edge cache first ----------
-  try {
-    const cache = caches.default;
-    const key = makeEdgeCacheKey(category, difficulty);
-    const cached = await cache.match(key);
-    if (cached) {
-      // fast path from edge
-      const c = new Response(cached.body, cached);
-      c.headers.set("cache-control", `public, s-maxage=${edgeCacheTTL}, stale-while-revalidate=${edgeStale}`);
-      return c;
-    }
-  } catch (_) {
-    // ignore caching errors
+  // ---------- Edge cache first (skip if forceGen) ----------
+  if (!forceGen) {
+    try {
+      const cache = caches.default;
+      const key = makeEdgeCacheKey(category, difficulty);
+      const cached = await cache.match(key);
+      if (cached) {
+        const c = new Response(cached.body, cached);
+        c.headers.set("cache-control", `public, s-maxage=${edgeCacheTTL}, stale-while-revalidate=${edgeStale}`);
+        return withDebugHeaders(c, "edge_cache");
+      }
+    } catch (_) { /* ignore */ }
   }
 
-  // ---------- Hybrid Pool: instant serve if available ----------
-  let pooled = poolPop(category, difficulty);
-  if (!pooled) {
-    // seed from static set if pool empty
-    const staticQ = pickStatic(category, difficulty);
-    if (staticQ) pooled = structuredClone(staticQ);
-  }
-  if (pooled) {
-    // slight randomization on output
-    finalizeChoices(pooled, seed);
-    const out = buildResponse({ ...pooled, _src: "pool_or_static" });
-    // set public cache so subsequent users also get something quick
-    out.headers.set("cache-control", `public, s-maxage=${edgeCacheTTL}, stale-while-revalidate=${edgeStale}`);
-    // Replenish pool in background
-    if (typeof context.waitUntil === "function") {
-      context.waitUntil(generateAndMaybeCache({ category, difficulty, recent, seed: seed + 7 }, env));
-    } else {
-      // fire-and-forget best effort
-      generateAndMaybeCache({ category, difficulty, recent, seed: seed + 7 }, env).catch(()=>{});
+  // ---------- Hybrid Pool / Static (skip if forceGen) ----------
+  if (!forceGen) {
+    let pooled = poolPop(category, difficulty);
+    if (!pooled) {
+      const staticQ = pickStatic(category, difficulty);
+      if (staticQ) pooled = structuredClone(staticQ);
     }
-    return out;
+    if (pooled) {
+      finalizeChoices(pooled, seed);
+      const out = buildResponse({ ...pooled, _src: "pool_or_static" });
+      out.headers.set("cache-control", `public, s-maxage=${edgeCacheTTL}, stale-while-revalidate=${edgeStale}`);
+      if (typeof context.waitUntil === "function") {
+        context.waitUntil(generateAndMaybeCache({ category, difficulty, recent, seed: seed + 7 }, env));
+      } else {
+        generateAndMaybeCache({ category, difficulty, recent, seed: seed + 7 }, env).catch(()=>{});
+      }
+      return withDebugHeaders(out, "pool_or_static");
+    }
   }
 
-  // ---------- No pool? Try to generate now, time-boxed with fallback ----------
+  // ---------- Generate now (forced or fallback) ----------
   const genRes = await generateAndMaybeCache({ category, difficulty, recent, seed }, env, /*eagerPutCache*/ true);
   if (genRes) {
-    const out = buildResponse({ ...genRes, _src: "fresh_gen" });
+    const out = buildResponse({ ...genRes, _src: forceGen ? "forced_gen" : "fresh_gen" });
     out.headers.set("cache-control", `public, s-maxage=${edgeCacheTTL}, stale-while-revalidate=${edgeStale}`);
-    return out;
+    return withDebugHeaders(out, forceGen ? "forced_gen" : "fresh_gen");
   }
 
   // ---------- Final fallback: static raw (always succeeds) ----------
@@ -211,7 +214,7 @@ export const onRequestPost = async (context) => {
   finalizeChoices(finalQ, seed);
   const out = buildResponse({ ...finalQ, _src: "static_final" });
   out.headers.set("cache-control", `public, s-maxage=${edgeCacheTTL}, stale-while-revalidate=${edgeStale}`);
-  return out;
+  return withDebugHeaders(out, "static_final");
 };
 
 // ====== Core generation with timeout, validation, edge cache + pool replenish ======
@@ -220,7 +223,6 @@ async function generateAndMaybeCache({ category, difficulty, recent, seed }, env
   const TEMP = difficulty === "hard" ? 0.6 : 0.65;
   const TOP_P = 0.9;
 
-  // Prompt kept compact for speed; you can expand with few-shot if quality dips.
   const sys = `You generate a single multiple-choice trivia question as strict JSON with fields:
 {
   "question": "string (8-180 chars)",
@@ -238,10 +240,9 @@ Return ONLY JSON (no markdown, no commentary). Keep language concise. Avoid repe
   const user = JSON.stringify({
     category, difficulty,
     constraint: "return ONLY json, no markdown",
-    recent: recent.slice(0, 20) // small slice to keep payload light
+    recent: recent.slice(0, 20)
   });
 
-  // up to MAX_TRIES time-boxed attempts
   for (let i = 0; i < MAX_TRIES; i++) {
     try {
       const run = env.AI.run(MODEL, {
@@ -259,14 +260,12 @@ Return ONLY JSON (no markdown, no commentary). Keep language concise. Avoid repe
       let txt = ai?.response ?? ai?.text ?? "";
       if (typeof txt !== "string") txt = JSON.stringify(ai);
 
-      // try to extract JSON
       const jsonStr = extractJson(txt);
       const q = JSON.parse(jsonStr);
 
       if (!validate(q)) throw new Error("schema_invalid");
       if (collidesWithRecent(q, recent)) throw new Error("collides_recent");
 
-      // shuffle answers deterministically by seed
       finalizeChoices(q, seed);
 
       // Put into pool for future instant serve
@@ -287,31 +286,25 @@ Return ONLY JSON (no markdown, no commentary). Keep language concise. Avoid repe
 
       return q;
     } catch (err) {
-      // Log why generation failed; helps diagnose env/model/format issues
-      console.error("[gen fail]", { attempt: i + 1, category, difficulty, error: String(err) });
-      // if timeout or other failure, try again w/ new seed (fast backoff)
+      const msg = `[gen fail] attempt=${i + 1} ${category}/${difficulty} :: ${String(err)}`;
+      console.error(msg);
+      LAST_GEN_ERROR = msg;
       seed = (seed + 13331) >>> 0;
-      // On final iteration, break
       if (i === MAX_TRIES - 1) break;
     }
   }
 
-  // Couldn’t generate now
   return null;
 }
 
 // Extract a JSON object from a string, even if the model wrapped it
 function extractJson(s) {
-  // Fast path: starts with { and ends with }
   const t = s.trim();
   if (t.startsWith("{") && t.endsWith("}")) return t;
-
-  // Try to find first {...} block
   const start = t.indexOf("{");
   const end = t.lastIndexOf("}");
   if (start !== -1 && end !== -1 && end > start) {
     return t.slice(start, end + 1);
   }
-  // Fallback to treating the whole thing as JSON (will throw if invalid)
   return t;
 }
