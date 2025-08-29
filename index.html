@@ -7,7 +7,7 @@
   <meta name="description" content="A sleek, adaptive AI trivia game" />
   <meta name="color-scheme" content="light dark" />
   <link rel="icon" href="/favicon.ico" />
-  <link rel="stylesheet" href="/styles.css" fetchpriority="high"/>
+  <link rel="stylesheet" href="/styles.css" fetchpriority="high">
 </head>
 <body>
   <header class="site-header">
@@ -28,20 +28,20 @@
       <p class="lead">Pick a category and test your wits. Questions are generated on the fly.</p>
 
       <div class="categories" role="tablist" aria-label="Categories">
-        <button class="chip active" data-cat="general">General</button>
-        <button class="chip" data-cat="dictionary">Dictionary</button>
-        <button class="chip" data-cat="entertainment">Entertainment</button>
-        <button class="chip" data-cat="history">History</button>
-        <button class="chip" data-cat="food_drink">Food &amp; Drink</button>
-        <button class="chip" data-cat="geography">Geography</button>
-        <button class="chip" data-cat="science_nature">Science &amp; Nature</button>
+        <button class="chip" data-cat="general" aria-pressed="false">General</button>
+        <button class="chip" data-cat="dictionary" aria-pressed="false">Dictionary</button>
+        <button class="chip" data-cat="entertainment" aria-pressed="false">Entertainment</button>
+        <button class="chip" data-cat="history" aria-pressed="false">History</button>
+        <button class="chip" data-cat="food_drink" aria-pressed="false">Food &amp; Drink</button>
+        <button class="chip" data-cat="geography" aria-pressed="false">Geography</button>
+        <button class="chip" data-cat="science_nature" aria-pressed="false">Science &amp; Nature</button>
       </div>
 
       <div class="categories" role="tablist" aria-label="Difficulty" style="margin-top:10px">
         <span class="muted" style="align-self:center">Difficulty:</span>
-        <button class="chip diff" data-diff="easy">Easy</button>
-        <button class="chip diff active" data-diff="medium">Medium</button>
-        <button class="chip diff" data-diff="hard">Hard</button>
+        <button class="chip diff" data-diff="easy" aria-pressed="false">Easy</button>
+        <button class="chip diff" data-diff="medium" aria-pressed="false">Medium</button>
+        <button class="chip diff" data-diff="hard" aria-pressed="false">Hard</button>
       </div>
     </section>
 
@@ -70,7 +70,7 @@
     </section>
 
     <section class="tips">
-      <p class="muted">Pro tip: Use <kbd>1</kbd>-><kbd>4</kbd> to answer quickly. Your best score is saved on this device.</p>
+      <p class="muted">Pro tip: Use <kbd>1</kbd>–<kbd>4</kbd> to answer quickly. Your best score is saved on this device.</p>
     </section>
   </main>
 
@@ -115,14 +115,22 @@
   function setCategory(cat){
     category = cat;
     catLabel.textContent = labelFor(cat);
-    document.querySelectorAll('.chip[data-cat]').forEach(ch => ch.classList.toggle('active', ch.dataset.cat===cat));
+    document.querySelectorAll('.chip[data-cat]').forEach(ch => {
+      const on = ch.dataset.cat === cat;
+      ch.classList.toggle('active', on);
+      ch.setAttribute('aria-pressed', on);
+    });
     persist();
   }
 
   function setDifficulty(diff){
     difficulty = diff;
     diffLabel.textContent = diff[0].toUpperCase()+diff.slice(1);
-    document.querySelectorAll('.chip.diff').forEach(ch => ch.classList.toggle('active', ch.dataset.diff===diff));
+    document.querySelectorAll('.chip.diff').forEach(ch => {
+      const on = ch.dataset.diff === diff;
+      ch.classList.toggle('active', on);
+      ch.setAttribute('aria-pressed', on);
+    });
     persist();
   }
 
@@ -149,18 +157,18 @@
 
   document.getElementById('year').textContent = new Date().getFullYear();
 
-  // init chips
+  // Wire click handlers (no pre-applied actives)
   document.querySelectorAll('.chip[data-cat]').forEach(btn => {
     btn.addEventListener('click', () => setCategory(btn.dataset.cat));
-    if (btn.dataset.cat === category) btn.classList.add('active');
   });
   document.querySelectorAll('.chip.diff').forEach(btn => {
     btn.addEventListener('click', () => setDifficulty(btn.dataset.diff));
-    if (btn.dataset.diff === difficulty) btn.classList.add('active');
   });
 
-  catLabel.textContent = labelFor(category);
-  diffLabel.textContent = difficulty[0].toUpperCase()+difficulty.slice(1);
+  // Force a clean initial state based on saved/default values
+  setCategory(category);
+  setDifficulty(difficulty);
+
   scoreEl.textContent = score; streakEl.textContent = streak;
 
   resetBtn.addEventListener('click', () => {
@@ -192,7 +200,7 @@
       });
       const data = await res.json();
 
-      // Basic client-side de-dup: if repeated, try up to 2 more times
+      // Basic client-side de-dup: if repeated, try up to 4 times
       if (recent.includes((data.question||'').trim()) && retry < 4) {
         return getQuestion(retry+1);
       }
