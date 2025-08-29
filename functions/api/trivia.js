@@ -33,7 +33,10 @@ export const onRequestPost = async (context) => {
         .replace(/\//g, "_")
         .replace(/=+$/g, ""),
     decode: (str) =>
-      Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)),
+      Uint8Array.from(
+        atob(str.replace(/-/g, "+").replace(/_/g, "/")),
+        (c) => c.charCodeAt(0)
+      ),
   };
 
   async function hmacSign(secret, msgBytes) {
@@ -118,7 +121,6 @@ export const onRequestPost = async (context) => {
           secret: env.TURNSTILE_SECRET,
           response: turnstileToken,
           remoteip: remoteIp,
-          // idempotency_key optional
         }),
       });
       const verify = await verifyRes.json();
@@ -169,7 +171,7 @@ export const onRequestPost = async (context) => {
     required: ["question", "choices", "correct_index", "answer_text", "topic_key", "subject_matter"]
   };
 
-  // ---------- Prompt, dedup helpers, etc. (unchanged from your latest) ----------
+  // ---------- Prompt, dedup helpers, etc. ----------
   const difficultyHint =
     difficulty === "easy"   ? "Create simple, straightforward questions about widely known facts. Avoid ambiguity." :
     difficulty === "hard"   ? "Create challenging but fair questions. No tricks or obscure trivia. Focus on deeper knowledge." :
@@ -250,7 +252,7 @@ export const onRequestPost = async (context) => {
     }
   ];
 
-  // ---------- Fallbacks (unchanged) ----------
+  // ---------- Fallbacks ----------
   const fallbacks = [
     {
       question: "Which planet is known as the 'Red Planet'?",
