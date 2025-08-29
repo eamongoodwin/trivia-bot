@@ -141,8 +141,8 @@ export const onRequestPost = async (context) => {
 
   // ---------- Model & sampling tuned for accuracy ----------
   const MODEL_MAP = {
-    easy:   "@cf/mistral/mistral-small-3.1-24b-instruct",
-    medium: "@cf/mistral/mistral-small-3.1-24b-instruct",
+    easy:   "@hf/meta-llama/meta-llama-3-8b-instruct",
+    medium: "@@cf/meta-llama/llama-2-7b-chat-hf-lora",
     hard:   "@cf/meta/llama-3.1-70b-instruct-fp8-fast",
   };
   const MODEL = MODEL_MAP[difficulty] || MODEL_MAP.medium;
