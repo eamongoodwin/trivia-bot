@@ -1,6 +1,11 @@
 name = "trivia-bot"
-compatibility_date = "2024-01-01"
-pages_build_output_dir = "dist"
+compatibility_date = "2025-08-01"
+
+# Serve static assets from the repo root (no build step)
+pages_build_output_dir = "."
 
 [ai]
 binding = "AI"
+
+[vars]
+GEN_TIMEOUT_MS = "8000"
