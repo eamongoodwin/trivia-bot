@@ -50,9 +50,9 @@ const MAX_TRIES = 3;         // fewer retries than before
 // For debugging, run everything on a known-fast model.
 // Once working, you can switch medium/hard back to larger models if desired.
 const MODEL_MAP = {
-  easy:   "@cf/meta/llama-3.1-8b-instruct",
-  medium: "@cf/meta/llama-3.1-8b-instruct",
-  hard:   "@cf/meta/llama-3.1-8b-instruct"
+  easy:   "@cf/meta/llama-3.2-1b-instruct",
+  medium: "@cf/meta/llama-3.2-1b-instruct",
+  hard:   "@cf/meta/llama-3.2-1b-instruct"
 };
 
 function raceWithTimeout(promise, ms = GEN_TIMEOUT_MS) {
