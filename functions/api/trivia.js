@@ -5,7 +5,6 @@
 // --- Optional external fallback bank (uncomment if you keep one next to this file) ---
 // import STATIC_PREBUILT from "../_shared/fallbackQuestions.js";
 
-// Lightweight internal fallback so this file is self-contained:
 const STATIC_PREBUILT = [
   {
     question: "What is the capital of France?",
